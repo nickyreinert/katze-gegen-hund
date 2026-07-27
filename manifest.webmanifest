@@ -1,0 +1,22 @@
+{
+  "name": "Katze gegen Hund",
+  "short_name": "Katze/Hund",
+  "description": "Vier kurze Duelle für zwei Kinder an einem Handy.",
+  "lang": "de",
+  "dir": "ltr",
+  "id": "/katze-gegen-hund/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "portrait",
+  "background_color": "#14112c",
+  "theme_color": "#14112c",
+  "categories": ["games", "kids"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
