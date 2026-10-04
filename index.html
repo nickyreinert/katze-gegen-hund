@@ -1062,6 +1062,7 @@
     const SPALTEN = 6;
     const ZEILEN = 10;
     const STREIFEN = 2.5;        // Hoehe des Streifens fuer den neuen Block, in Zellen
+    const LEISTE = 1.8;          // Hoehe der Knopfleiste am Spielerrand, in Zellen
     const RAND = 70;             // Mindestbreite je Seite neben dem Feld fuer Gesicht und Zaehler
     const BLOECKE = 15;          // Bloecke pro Spieler, beide bekommen dieselbe Folge
     const H_FOLGE = [0, 0, 0, 2, 2, 0];   // H.Modus: Index in FORMEN, I I I L L I, danach wie sonst zufaellig
@@ -1134,20 +1135,59 @@
         c.width = Math.round(s.breite * dpr);
         c.height = Math.round(s.hoehe * dpr);
         stifte[i].setTransform(dpr, 0, 0, dpr, 0, 0);
-        // Feld unten buendig, darueber (zur Mitte hin) der Streifen fuer den neuen Block
-        s.z = Math.min((s.breite - 2 * RAND) / SPALTEN, s.hoehe / (ZEILEN + STREIFEN));
+        // Von der Mitte zum Spielerrand: Streifen fuer den neuen Block, Feld, Knopfleiste
+        s.z = Math.min((s.breite - 2 * RAND) / SPALTEN, s.hoehe / (ZEILEN + STREIFEN + LEISTE));
         s.x0 = (s.breite - s.z * SPALTEN) / 2;
-        s.y0 = s.hoehe - s.z * ZEILEN;
+        s.y0 = s.hoehe - s.z * (ZEILEN + LEISTE);
       });
     }
 
-    // Knoepfe im Streifen: links Drehen, rechts Setzen, dazwischen der neue Block
+    // Knoepfe in der Leiste unter dem Feld: links Drehen, rechts Setzen
     function knoepfe(s) {
       const zp = Math.min(s.z, (s.y0 - 16) / 4);
-      const h = Math.min(s.y0 - 16, 64);
-      const b = Math.min(110, (s.breite - 4 * zp) / 2 - 20);
-      const y = (s.y0 - h) / 2;
-      return { zp, drehen: { x: 10, y, b, h }, setzen: { x: s.breite - 10 - b, y, b, h } };
+      const luecke = 8;
+      const b = (s.z * SPALTEN - luecke) / 2;
+      const y = s.y0 + s.z * ZEILEN + 6;
+      const h = s.z * LEISTE - 12;
+      return { zp, drehen: { x: s.x0, y, b, h }, setzen: { x: s.x0 + b + luecke, y, b, h } };
+    }
+
+    // Symbole: Kreispfeil zum Drehen, Pfeil auf eine Linie zum Setzen
+    function symbol(stift, art, cx, cy, r) {
+      stift.lineWidth = Math.max(3, r * 0.22);
+      stift.lineCap = "round";
+      stift.lineJoin = "round";
+      stift.strokeStyle = stift.fillStyle = "rgba(244, 240, 255, 0.95)";
+      stift.beginPath();
+      if (art === "drehen") {
+        const ende = Math.PI * 1.75;
+        stift.arc(cx, cy, r, Math.PI * 0.2, ende);
+        stift.stroke();
+        const ex = cx + Math.cos(ende) * r;
+        const ey = cy + Math.sin(ende) * r;
+        const tx = -Math.sin(ende);
+        const ty = Math.cos(ende);
+        stift.beginPath();
+        stift.moveTo(ex + tx * r * 0.55, ey + ty * r * 0.55);
+        stift.lineTo(ex - ty * r * 0.45, ey + tx * r * 0.45);
+        stift.lineTo(ex + ty * r * 0.45, ey - tx * r * 0.45);
+        stift.closePath();
+        stift.fill();
+      } else {
+        stift.moveTo(cx, cy - r);
+        stift.lineTo(cx, cy + r * 0.2);
+        stift.stroke();
+        stift.beginPath();
+        stift.moveTo(cx - r * 0.55, cy - r * 0.2);
+        stift.lineTo(cx, cy + r * 0.45);
+        stift.lineTo(cx + r * 0.55, cy - r * 0.2);
+        stift.closePath();
+        stift.fill();
+        stift.beginPath();
+        stift.moveTo(cx - r * 0.8, cy + r * 0.85);
+        stift.lineTo(cx + r * 0.8, cy + r * 0.85);
+        stift.stroke();
+      }
     }
 
     const inKnopf = (k, x, y) => x >= k.x && x <= k.x + k.b && y >= k.y && y <= k.y + k.h;
@@ -1205,15 +1245,12 @@
         const py = (y0 - hh * k.zp) / 2;
         zellen.forEach(([r, c]) => zelle(stift, px + c * k.zp, py + r * k.zp, k.zp, aktuell.farbe));
 
-        stift.lineWidth = 2;
-        stift.textAlign = "center";
-        stift.font = "800 18px 'Baloo 2', system-ui, sans-serif";
-        [["Drehen", k.drehen, true], ["Setzen", k.setzen, s.gewaehlt]].forEach(([text, f, aktiv]) => {
+        [["drehen", k.drehen, true], ["setzen", k.setzen, s.gewaehlt]].forEach(([art, f, aktiv]) => {
           stift.globalAlpha = aktiv ? 1 : 0.35;
           stift.strokeStyle = "rgba(244, 240, 255, 0.85)";
+          stift.lineWidth = 2;
           stift.strokeRect(f.x, f.y, f.b, f.h);
-          stift.fillStyle = "rgba(244, 240, 255, 0.95)";
-          stift.fillText(text, f.x + f.b / 2, f.y + f.h / 2 - 11);
+          symbol(stift, art, f.x + f.b / 2, f.y + f.h / 2, Math.min(f.b, f.h) * 0.3);
         });
         stift.globalAlpha = 1;
         stift.textAlign = "start";
@@ -1268,7 +1305,7 @@
 
     return {
       wurzel,
-      anleitung: "Drehen dreht den Block. Ins Feld tippen, um ihn dort als Vorschau zu platzieren, beliebig oft verschieben. Setzen legt ihn fest. Kein Zeitdruck: Wer mehr volle Reihen schafft, gewinnt.",
+      anleitung: "Kreispfeil dreht den Block. Ins Feld tippen, um ihn dort als Vorschau zu platzieren, beliebig oft verschieben. Pfeil nach unten legt ihn fest. Kein Zeitdruck: Wer mehr volle Reihen schafft, gewinnt.",
       vorbereiten() {
         clearTimeout(endeId);
         masse();
