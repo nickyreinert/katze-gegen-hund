@@ -1,12 +1,12 @@
 # Katze gegen Hund
 
-Vier kurze Duelle für zwei Kinder an **einem** Handy. Das Handy liegt flach auf
+Fünf kurze Duelle für zwei Kinder an **einem** Handy. Das Handy liegt flach auf
 dem Tisch, ein Kind sitzt an jeder Seite: Die obere Bildschirmhälfte gehört der
 Katze und ist gedreht, die untere gehört dem Hund.
 
 ![Katze gegen Hund](icons/vorschau.png)
 
-## Die vier Spiele
+## Die fünf Spiele
 
 | Spiel | So geht es | Gewonnen hat, wer … |
 | --- | --- | --- |
@@ -14,6 +14,7 @@ Katze und ist gedreht, die untere gehört dem Hund.
 | **Tauziehen** | Den weißen Punkt auf der eigenen Hälfte treffen, dann springt er weiter. | zehn Nettotreffer Vorsprung schafft und die Trennlinie bis zum Rand schiebt. |
 | **Schnellster Finger** | Warten, bis alles grün wird, dann tippen. Zu früh getippt heißt Durchgang verloren. | zwei Durchgänge gewinnt. |
 | **Autorennen** | Links oder rechts auf der eigenen Hälfte gedrückt halten, um das Auto zu lenken. Leckerli auf der Strecke geben kurz Schwung. | zuerst im Ziel ist. Die Mitte zeigt, wie weit beide sind. |
+| **Tetris** | Spalte antippen, in die der Block soll, dann den Block noch einmal antippen. `Drehen` ändert die Form. Kein Zeitdruck, beide bekommen dieselben 15 Blöcke. | mehr volle Reihen räumt. Wer keinen Block mehr unterbringt, ist fertig. Bei Gleichstand zählen mehr gesetzte Blöcke, dann entscheidet der Zufall. |
 
 Der Gesamtstand zwischen Katze und Hund läuft über alle Spiele weiter und
 bleibt auch nach dem Schließen der Seite erhalten. `Punkte löschen` im Menü
