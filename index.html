@@ -292,7 +292,7 @@
 <div class="schirm verborgen" id="start">
   <div id="zaehler">3</div>
   <div class="text" id="startText"></div>
-  <label class="hmodus verborgen" id="hModusFeld"><input type="checkbox" id="hModus">H.Modus</label>
+  <label class="hmodus verborgen" id="einfachFeld"><input type="checkbox" id="einfach">einfach</label>
 </div>
 
 <div class="schirm verborgen" id="ergebnis">
@@ -1062,9 +1062,11 @@
     const SPALTEN = 6;
     const ZEILEN = 10;
     const STREIFEN = 2.5;        // Hoehe des Streifens fuer den neuen Block, in Zellen
+    const LEISTE = 1.8;          // Hoehe der Knopfleiste am Spielerrand, in Zellen
     const RAND = 70;             // Mindestbreite je Seite neben dem Feld fuer Gesicht und Zaehler
     const BLOECKE = 15;          // Bloecke pro Spieler, beide bekommen dieselbe Folge
-    const H_FOLGE = [0, 0, 0, 2, 2, 0];   // H.Modus: Index in FORMEN, I I I L L I, danach wie sonst zufaellig
+    const FALL_MS = 1000;        // schwerer Modus: so oft rutscht der Block eine Zeile nach unten
+    const H_FOLGE = [0, 0, 0, 2, 2, 0];   // einfacher Modus: Index in FORMEN, I I I L L I, danach zufaellig
     const FORMEN = [             // Zellen als [Zeile, Spalte]
       { farbe: "#7bdcff", zellen: [[0, 0], [0, 1], [0, 2], [0, 3]] },   // I
       { farbe: "#ffd166", zellen: [[0, 0], [0, 1], [1, 0], [1, 1]] },   // O
@@ -1078,13 +1080,16 @@
     const flaechen = zonen.map(z => z.querySelector(".bahn"));
     const stifte = flaechen.map(c => c.getContext("2d"));
 
+    // tippS/tippZ: zuletzt angetippte Zelle (einfach), t/links: Lage des fallenden Blocks (schwer)
     const spieler = [0, 1].map(() => ({
       breite: 0, hoehe: 0, z: 0, x0: 0, y0: 0,
-      feld: [], drehung: 0, links: 0, gewaehlt: false,
+      feld: [], drehung: 0, tippS: 0, tippZ: 0, gewaehlt: false, t: 0, links: 0,
       reihen: 0, gesetzt: 0, fertig: false, voll: false
     }));
     let folge = [];
+    let schwer = false;
     let endeId = 0;
+    let fallId = 0;
 
     const leeresFeld = () => Array.from({ length: ZEILEN }, () => new Array(SPALTEN).fill(0));
 
@@ -1098,6 +1103,8 @@
 
     const form = (s, mal) => gedreht(FORMEN[folge[s.gesetzt]].zellen, mal === undefined ? s.drehung : mal);
     const formBreite = zellen => Math.max(...zellen.map(p => p[1])) + 1;
+    const formHoehe = zellen => Math.max(...zellen.map(p => p[0])) + 1;
+    const klemme = (v, min, max) => Math.max(min, Math.min(max, v));
 
     function passt(feld, zellen, t, l) {
       return zellen.every(([r, c]) => {
@@ -1107,22 +1114,34 @@
       });
     }
 
-    // oberste Zeile, in der der Block nach dem Fallen liegen bleibt, -1 wenn die Spalte oben voll ist
-    function lande(feld, zellen, l) {
-      if (!passt(feld, zellen, 0, l)) return -1;
-      let t = 0;
+    function faelltBis(feld, zellen, t, l) {
       while (passt(feld, zellen, t + 1, l)) t++;
       return t;
     }
 
+    // irgendwo im Feld ist noch Platz fuer den Block, in irgendeiner Drehung
     function moeglich(s) {
       for (let mal = 0; mal < 4; mal++) {
         const zellen = form(s, mal);
         for (let l = 0; l + formBreite(zellen) <= SPALTEN; l++) {
-          if (lande(s.feld, zellen, l) >= 0) return true;
+          for (let t = 0; t + formHoehe(zellen) <= ZEILEN; t++) {
+            if (passt(s.feld, zellen, t, l)) return true;
+          }
         }
       }
       return false;
+    }
+
+    // einfacher Modus: Lage aus der angetippten Zelle. Der Block startet auf der
+    // angetippten Hoehe, damit er auch unter Ueberhaenge in Luecken passt, und
+    // sinkt von dort bis er aufliegt. Passt es dort nicht, faellt er von oben.
+    function ziel(s) {
+      const zellen = form(s);
+      const links = klemme(s.tippS - Math.floor(formBreite(zellen) / 2), 0, SPALTEN - formBreite(zellen));
+      let t = klemme(s.tippZ - Math.floor(formHoehe(zellen) / 2), 0, ZEILEN - formHoehe(zellen));
+      if (!passt(s.feld, zellen, t, links)) t = 0;
+      if (!passt(s.feld, zellen, t, links)) return null;
+      return { links, t: faelltBis(s.feld, zellen, t, links) };
     }
 
     function masse() {
@@ -1134,23 +1153,75 @@
         c.width = Math.round(s.breite * dpr);
         c.height = Math.round(s.hoehe * dpr);
         stifte[i].setTransform(dpr, 0, 0, dpr, 0, 0);
-        // Feld unten buendig, darueber (zur Mitte hin) der Streifen fuer den neuen Block
-        s.z = Math.min((s.breite - 2 * RAND) / SPALTEN, s.hoehe / (ZEILEN + STREIFEN));
+        // Von der Mitte zum Spielerrand: Streifen fuer den neuen Block, Feld, Knopfleiste
+        s.z = Math.min((s.breite - 2 * RAND) / SPALTEN, s.hoehe / (ZEILEN + STREIFEN + LEISTE));
         s.x0 = (s.breite - s.z * SPALTEN) / 2;
-        s.y0 = s.hoehe - s.z * ZEILEN;
+        s.y0 = s.hoehe - s.z * (ZEILEN + LEISTE);
       });
     }
 
-    // Knoepfe im Streifen: links Drehen, rechts Setzen, dazwischen der neue Block
+    // Knoepfe in der Leiste unter dem Feld. Einfach: Drehen, Setzen.
+    // Schwer: links, Drehen, Fallen lassen, rechts.
     function knoepfe(s) {
       const zp = Math.min(s.z, (s.y0 - 16) / 4);
-      const h = Math.min(s.y0 - 16, 64);
-      const b = Math.min(110, (s.breite - 4 * zp) / 2 - 20);
-      const y = (s.y0 - h) / 2;
-      return { zp, drehen: { x: 10, y, b, h }, setzen: { x: s.breite - 10 - b, y, b, h } };
+      const arten = schwer ? ["links", "drehen", "setzen", "rechts"] : ["drehen", "setzen"];
+      const luecke = 8;
+      const gesamt = schwer ? Math.min(s.breite - 20, 480) : s.z * SPALTEN;
+      const b = (gesamt - luecke * (arten.length - 1)) / arten.length;
+      const x0 = (s.breite - gesamt) / 2;
+      const y = s.y0 + s.z * ZEILEN + 6;
+      const h = s.z * LEISTE - 12;
+      return { zp, liste: arten.map((art, k) => ({ art, x: x0 + k * (b + luecke), y, b, h })) };
     }
 
-    const inKnopf = (k, x, y) => x >= k.x && x <= k.x + k.b && y >= k.y && y <= k.y + k.h;
+    // Symbole: Kreispfeil, Pfeil auf eine Linie, Pfeile nach links und rechts
+    function symbol(stift, art, cx, cy, r) {
+      stift.lineWidth = Math.max(3, r * 0.22);
+      stift.lineCap = "round";
+      stift.lineJoin = "round";
+      stift.strokeStyle = stift.fillStyle = "rgba(244, 240, 255, 0.95)";
+      stift.beginPath();
+      if (art === "drehen") {
+        const ende = Math.PI * 1.75;
+        stift.arc(cx, cy, r, Math.PI * 0.2, ende);
+        stift.stroke();
+        const ex = cx + Math.cos(ende) * r;
+        const ey = cy + Math.sin(ende) * r;
+        const tx = -Math.sin(ende);
+        const ty = Math.cos(ende);
+        stift.beginPath();
+        stift.moveTo(ex + tx * r * 0.55, ey + ty * r * 0.55);
+        stift.lineTo(ex - ty * r * 0.45, ey + tx * r * 0.45);
+        stift.lineTo(ex + ty * r * 0.45, ey - tx * r * 0.45);
+        stift.closePath();
+        stift.fill();
+      } else if (art === "setzen") {
+        stift.moveTo(cx, cy - r);
+        stift.lineTo(cx, cy + r * 0.2);
+        stift.stroke();
+        stift.beginPath();
+        stift.moveTo(cx - r * 0.55, cy - r * 0.2);
+        stift.lineTo(cx, cy + r * 0.45);
+        stift.lineTo(cx + r * 0.55, cy - r * 0.2);
+        stift.closePath();
+        stift.fill();
+        stift.beginPath();
+        stift.moveTo(cx - r * 0.8, cy + r * 0.85);
+        stift.lineTo(cx + r * 0.8, cy + r * 0.85);
+        stift.stroke();
+      } else {
+        const v = art === "links" ? -1 : 1;
+        stift.moveTo(cx - v * r, cy);
+        stift.lineTo(cx + v * r * 0.2, cy);
+        stift.stroke();
+        stift.beginPath();
+        stift.moveTo(cx + v * r * 0.45, cy - r * 0.55);
+        stift.lineTo(cx + v * r, cy);
+        stift.lineTo(cx + v * r * 0.45, cy + r * 0.55);
+        stift.closePath();
+        stift.fill();
+      }
+    }
 
     function zelle(stift, x, y, kante, farbe) {
       stift.fillStyle = farbe;
@@ -1171,13 +1242,15 @@
       }
 
       const aktuell = s.fertig ? null : FORMEN[folge[s.gesetzt]];
-
-      if (aktuell && s.gewaehlt) {
-        const zellen = form(s);
-        const tz = lande(s.feld, zellen, s.links);
-        stift.globalAlpha = 0.45;
-        zellen.forEach(([r, c]) => zelle(stift, x0 + (s.links + c) * z, y0 + (tz + r) * z, z, aktuell.farbe));
-        stift.globalAlpha = 1;
+      if (aktuell && schwer) {
+        form(s).forEach(([r, c]) => zelle(stift, x0 + (s.links + c) * z, y0 + (s.t + r) * z, z, aktuell.farbe));
+      } else if (aktuell && s.gewaehlt) {
+        const lage = ziel(s);
+        if (lage) {
+          stift.globalAlpha = 0.45;
+          form(s).forEach(([r, c]) => zelle(stift, x0 + (lage.links + c) * z, y0 + (lage.t + r) * z, z, aktuell.farbe));
+          stift.globalAlpha = 1;
+        }
       }
 
       // Gesicht und Zaehler in den Raendern neben dem Feld
@@ -1198,25 +1271,21 @@
 
       if (aktuell) {
         const k = knoepfe(s);
-        const zellen = form(s);
-        const bb = formBreite(zellen);
-        const hh = Math.max(...zellen.map(p => p[0])) + 1;
-        const px = (breite - bb * k.zp) / 2;
-        const py = (y0 - hh * k.zp) / 2;
-        zellen.forEach(([r, c]) => zelle(stift, px + c * k.zp, py + r * k.zp, k.zp, aktuell.farbe));
+        if (!schwer) {
+          const zellen = form(s);
+          const px = (breite - formBreite(zellen) * k.zp) / 2;
+          const py = (y0 - formHoehe(zellen) * k.zp) / 2;
+          zellen.forEach(([r, c]) => zelle(stift, px + c * k.zp, py + r * k.zp, k.zp, aktuell.farbe));
+        }
 
-        stift.lineWidth = 2;
-        stift.textAlign = "center";
-        stift.font = "800 18px 'Baloo 2', system-ui, sans-serif";
-        [["Drehen", k.drehen, true], ["Setzen", k.setzen, s.gewaehlt]].forEach(([text, f, aktiv]) => {
-          stift.globalAlpha = aktiv ? 1 : 0.35;
+        k.liste.forEach(f => {
+          stift.globalAlpha = f.art === "setzen" && !schwer && !s.gewaehlt ? 0.35 : 1;
           stift.strokeStyle = "rgba(244, 240, 255, 0.85)";
+          stift.lineWidth = 2;
           stift.strokeRect(f.x, f.y, f.b, f.h);
-          stift.fillStyle = "rgba(244, 240, 255, 0.95)";
-          stift.fillText(text, f.x + f.b / 2, f.y + f.h / 2 - 11);
+          symbol(stift, f.art, f.x + f.b / 2, f.y + f.h / 2, Math.min(f.b, f.h) * 0.3);
         });
         stift.globalAlpha = 1;
-        stift.textAlign = "start";
       }
 
       if (s.fertig) {
@@ -1240,9 +1309,16 @@
       return Math.random() < 0.5 ? 0 : 1;
     }
 
-    function setze(s, links) {
+    // schwerer Modus: neuer Block oben in der Mitte, passt er nicht, ist das Feld voll
+    function neuerBlock(s) {
+      s.drehung = 0;
+      s.t = 0;
+      s.links = Math.floor((SPALTEN - formBreite(form(s))) / 2);
+      if (!passt(s.feld, form(s), s.t, s.links)) { s.fertig = true; s.voll = true; }
+    }
+
+    function festlegen(s, links, t) {
       const zellen = form(s);
-      const t = lande(s.feld, zellen, links);
       const farbe = FORMEN[folge[s.gesetzt]].farbe;
       zellen.forEach(([r, c]) => { s.feld[t + r][links + c] = farbe; });
       s.gesetzt += 1;
@@ -1260,23 +1336,48 @@
       s.drehung = 0;
       s.gewaehlt = false;
       if (s.gesetzt >= BLOECKE) s.fertig = true;
+      else if (schwer) neuerBlock(s);
       else if (!moeglich(s)) { s.fertig = true; s.voll = true; }
 
       alleZeichnen();
       if (spieler.every(x => x.fertig)) endeId = setTimeout(() => beenden(sieger()), 900);
     }
 
+    function fallen() {
+      spieler.forEach(s => {
+        if (s.fertig) return;
+        if (passt(s.feld, form(s), s.t + 1, s.links)) s.t += 1;
+        else festlegen(s, s.links, s.t);
+      });
+      alleZeichnen();
+    }
+
+    function dreheSchwer(s) {
+      const neu = (s.drehung + 1) % 4;
+      const zellen = form(s, neu);
+      for (const versatz of [0, -1, 1, -2, 2]) {
+        if (passt(s.feld, zellen, s.t, s.links + versatz)) {
+          s.drehung = neu;
+          s.links += versatz;
+          return;
+        }
+      }
+    }
+
     return {
       wurzel,
-      anleitung: "Drehen dreht den Block. Ins Feld tippen, um ihn dort als Vorschau zu platzieren, beliebig oft verschieben. Setzen legt ihn fest. Kein Zeitdruck: Wer mehr volle Reihen schafft, gewinnt.",
+      anleitung: "Kreispfeil dreht den Block. Einfach: ins Feld tippen zeigt die Vorschau, beliebig oft verschieben, Pfeil nach unten legt ihn fest. Ohne einfach fällt der Block langsam, mit den Pfeilen steuern. Wer mehr volle Reihen schafft, gewinnt.",
       vorbereiten() {
         clearTimeout(endeId);
+        clearInterval(fallId);
+        schwer = false;
         masse();
         folge = Array.from({ length: BLOECKE }, () => Math.floor(Math.random() * FORMEN.length));
         spieler.forEach(s => {
           s.feld = leeresFeld();
           s.drehung = 0;
-          s.links = 0;
+          s.tippS = 0;
+          s.tippZ = 0;
           s.gewaehlt = false;
           s.reihen = 0;
           s.gesetzt = 0;
@@ -1286,12 +1387,18 @@
         alleZeichnen();
       },
       losgehen() {
-        if (el("hModus").checked) {
-          folge = folge.map((f, k) => (k < H_FOLGE.length ? H_FOLGE[k] : f));
-          alleZeichnen();
+        schwer = !el("einfach").checked;
+        if (!schwer) folge = folge.map((f, k) => (k < H_FOLGE.length ? H_FOLGE[k] : f));
+        if (schwer) {
+          spieler.forEach(neuerBlock);
+          fallId = setInterval(fallen, FALL_MS);
         }
+        alleZeichnen();
       },
-      aufhoeren() { clearTimeout(endeId); },
+      aufhoeren() {
+        clearTimeout(endeId);
+        clearInterval(fallId);
+      },
       runter(i, kennung, x, y) {
         const s = spieler[i];
         if (s.fertig) return;
@@ -1300,28 +1407,34 @@
         const lx = i === 0 ? r.right - x : x - r.left;
         const ly = i === 0 ? r.bottom - y : y - r.top;
 
-        const k = knoepfe(s);
-        if (inKnopf(k.drehen, lx, ly)) {
-          s.drehung = (s.drehung + 1) % 4;
-          const zellen = form(s);
-          s.links = Math.min(s.links, SPALTEN - formBreite(zellen));
-          if (s.gewaehlt && lande(s.feld, zellen, s.links) < 0) s.gewaehlt = false;
+        const knopf = knoepfe(s).liste.find(f => lx >= f.x && lx <= f.x + f.b && ly >= f.y && ly <= f.y + f.h);
+        if (knopf) {
+          if (schwer) {
+            if (knopf.art === "links" && passt(s.feld, form(s), s.t, s.links - 1)) s.links -= 1;
+            else if (knopf.art === "rechts" && passt(s.feld, form(s), s.t, s.links + 1)) s.links += 1;
+            else if (knopf.art === "drehen") dreheSchwer(s);
+            else if (knopf.art === "setzen") { festlegen(s, s.links, faelltBis(s.feld, form(s), s.t, s.links)); return; }
+          } else if (knopf.art === "drehen") {
+            s.drehung = (s.drehung + 1) % 4;
+            if (s.gewaehlt && !ziel(s)) s.gewaehlt = false;
+          } else if (s.gewaehlt) {
+            const lage = ziel(s);
+            if (lage) festlegen(s, lage.links, lage.t);
+            return;
+          }
           zeichne(s, stifte[i], i);
           return;
         }
-        if (inKnopf(k.setzen, lx, ly)) {
-          if (s.gewaehlt) setze(s, s.links);
-          return;
-        }
 
+        if (schwer) return;
         const spalte = Math.floor((lx - s.x0) / s.z);
-        if (ly < s.y0 || spalte < 0 || spalte >= SPALTEN) return;
-        const zellen = form(s);
-        const b = formBreite(zellen);
-        const links = Math.max(0, Math.min(SPALTEN - b, spalte - Math.floor(b / 2)));
-        if (lande(s.feld, zellen, links) < 0) return;
-        s.links = links;
-        s.gewaehlt = true;
+        const zeile = Math.floor((ly - s.y0) / s.z);
+        if (zeile < 0 || zeile >= ZEILEN || spalte < 0 || spalte >= SPALTEN) return;
+        const davor = { tippS: s.tippS, tippZ: s.tippZ };
+        s.tippS = spalte;
+        s.tippZ = zeile;
+        if (ziel(s)) s.gewaehlt = true;
+        else { s.tippS = davor.tippS; s.tippZ = davor.tippZ; }
         zeichne(s, stifte[i], i);
       },
       hoch() {}
@@ -1359,7 +1472,7 @@
     zeige(el("ergebnis"), false);
 
     el("startText").textContent = aktuellesSpiel.anleitung;
-    zeige(el("hModusFeld"), schluessel === "tetris");
+    zeige(el("einfachFeld"), schluessel === "tetris");
     klang.aufwecken();
     wachhalten.an();
     let zahl = 3;
