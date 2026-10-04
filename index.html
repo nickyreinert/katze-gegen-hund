@@ -1160,18 +1160,23 @@
       });
     }
 
-    // Knoepfe in der Leiste unter dem Feld. Einfach: Drehen, Setzen.
-    // Schwer: links, Drehen, Fallen lassen, rechts.
+    // Knoepfe: in der Leiste unter dem Feld Drehen und Setzen (schwer: Fallen lassen),
+    // im schweren Modus zusaetzlich links und rechts neben dem Feld die Pfeile
     function knoepfe(s) {
       const zp = Math.min(s.z, (s.y0 - 16) / 4);
-      const arten = schwer ? ["links", "drehen", "setzen", "rechts"] : ["drehen", "setzen"];
       const luecke = 8;
-      const gesamt = schwer ? Math.min(s.breite - 20, 480) : s.z * SPALTEN;
-      const b = (gesamt - luecke * (arten.length - 1)) / arten.length;
-      const x0 = (s.breite - gesamt) / 2;
+      const gesamt = s.z * SPALTEN;
+      const b = (gesamt - luecke) / 2;
       const y = s.y0 + s.z * ZEILEN + 6;
       const h = s.z * LEISTE - 12;
-      return { zp, liste: arten.map((art, k) => ({ art, x: x0 + k * (b + luecke), y, b, h })) };
+      const liste = ["drehen", "setzen"].map((art, k) => ({ art, x: s.x0 + k * (b + luecke), y, b, h }));
+      if (schwer) {
+        const kante = Math.min(s.x0 - 12, 80);
+        const unten = s.y0 + s.z * ZEILEN - kante;
+        liste.push({ art: "links", x: s.x0 - kante - 6, y: unten, b: kante, h: kante });
+        liste.push({ art: "rechts", x: s.x0 + gesamt + 6, y: unten, b: kante, h: kante });
+      }
+      return { zp, liste };
     }
 
     // Symbole: Kreispfeil, Pfeil auf eine Linie, Pfeile nach links und rechts
