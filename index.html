@@ -192,6 +192,8 @@
   }
   .knopf:focus-visible { outline: 4px solid var(--katze); outline-offset: 4px; }
   .klein { font-size: clamp(14px, 4vw, 18px); padding: 10px 22px; border-width: 2px; opacity: 0.7; }
+  .hmodus { display: flex; align-items: center; gap: 12px; font-size: clamp(18px, 5.2vw, 24px); font-weight: 800; cursor: pointer; }
+  .hmodus input { width: 28px; height: 28px; accent-color: var(--katze); }
   #zaehler { font-size: clamp(80px, 28vw, 180px); font-weight: 800; }
   @media (prefers-reduced-motion: reduce) {
     .fuellung, #anteil { transition: none; }
@@ -290,6 +292,7 @@
 <div class="schirm verborgen" id="start">
   <div id="zaehler">3</div>
   <div class="text" id="startText"></div>
+  <label class="hmodus verborgen" id="hModusFeld"><input type="checkbox" id="hModus">H.Modus</label>
 </div>
 
 <div class="schirm verborgen" id="ergebnis">
@@ -1059,7 +1062,8 @@
     const SPALTEN = 6;
     const ZEILEN = 10;
     const STREIFEN = 2.5;        // Hoehe des Streifens fuer den neuen Block, in Zellen
-    const BLOECKE = 15;          // Bloecke pro Spieler, beide bekommen dieselbe Folge
+    const BLOECKE = 15;
+    const H_FOLGE = [0, 0, 0, 2, 2, 0];   // H.Modus: Index in FORMEN, I I I L L I, danach wie sonst zufaellig          // Bloecke pro Spieler, beide bekommen dieselbe Folge
     const FORMEN = [             // Zellen als [Zeile, Spalte]
       { farbe: "#7bdcff", zellen: [[0, 0], [0, 1], [0, 2], [0, 3]] },   // I
       { farbe: "#ffd166", zellen: [[0, 0], [0, 1], [1, 0], [1, 1]] },   // O
@@ -1241,7 +1245,12 @@
         });
         alleZeichnen();
       },
-      losgehen() {},
+      losgehen() {
+        if (el("hModus").checked) {
+          folge = folge.map((f, k) => (k < H_FOLGE.length ? H_FOLGE[k] : f));
+          alleZeichnen();
+        }
+      },
       aufhoeren() { clearTimeout(endeId); },
       runter(i, kennung, x, y) {
         const s = spieler[i];
@@ -1300,6 +1309,7 @@
     zeige(el("ergebnis"), false);
 
     el("startText").textContent = aktuellesSpiel.anleitung;
+    zeige(el("hModusFeld"), schluessel === "tetris");
     klang.aufwecken();
     wachhalten.an();
     let zahl = 3;
