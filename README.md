@@ -55,8 +55,10 @@ hochzählen, sonst bekommen Geräte mit installierter App noch die alte Fassung.
 
 ## Veröffentlichen
 
-`.github/workflows/pages.yml` schiebt bei jedem Push auf `main` den ganzen
-Ordner zu GitHub Pages. Einmalig muss dafür unter **Settings → Pages** als
+`.github/workflows/pages.yml` schiebt den ganzen Ordner zu GitHub Pages. Der
+Ablauf startet bei einem Push auf `main` oder `master` oder von Hand über
+**Actions → Run workflow**. Dieses Repository hat keinen dieser Branches,
+automatisch läuft er hier also nicht. Einmalig muss dafür unter **Settings → Pages** als
 *Source* **GitHub Actions** eingestellt sein. Danach liegt das Spiel unter
 `https://nickyreinert.github.io/katze-gegen-hund/`.
 
