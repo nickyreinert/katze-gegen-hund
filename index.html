@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Katze gegen Hund</title>
-<meta name="description" content="Vier kurze Duelle für zwei Kinder an einem Handy: Handy flach auf den Tisch, jedes Kind an eine Seite. Halte durch, Tauziehen, Schnellster Finger, Leckerli fangen.">
+<meta name="description" content="Fünf kurze Duelle für zwei Kinder an einem Handy: Handy flach auf den Tisch, jedes Kind an eine Seite. Halte durch, Tauziehen, Schnellster Finger, Autorennen, Tetris.">
 <meta name="theme-color" content="#14112c">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Katze gegen Hund">
-<meta property="og:description" content="Vier kurze Duelle für zwei Kinder an einem Handy. Handy flach auf den Tisch, jedes Kind an eine Seite.">
+<meta property="og:description" content="Fünf kurze Duelle für zwei Kinder an einem Handy. Handy flach auf den Tisch, jedes Kind an eine Seite.">
 <meta property="og:image" content="https://nickyreinert.github.io/katze-gegen-hund/icons/vorschau.png">
 <meta property="og:url" content="https://nickyreinert.github.io/katze-gegen-hund/">
 <meta name="twitter:card" content="summary_large_image">
@@ -124,10 +124,36 @@
   #reaktion.jetzt .zone { background: var(--gruen); color: var(--nacht); }
   #reaktion .zone.fehlstart { background: var(--warn); }
 
-  /* ---------- Spiel 4: Leckerli fangen ---------- */
+  /* ---------- Spiel 4: Autorennen ---------- */
   #rennen .zone { background: #1b1740; }
+  #rennenWeg { position: absolute; left: 8%; right: 8%; top: 50%; height: 0; z-index: 2; pointer-events: none; }
+  #rennenWeg::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: -4px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--hell);
+    opacity: 0.5;
+  }
+  #rennenWeg .marke {
+    position: absolute;
+    top: -12px;
+    width: 24px;
+    height: 24px;
+    margin-left: -12px;
+    border-radius: 50%;
+    border: 3px solid var(--hell);
+  }
+  #rennenWeg .marke[data-spieler="0"] { background: var(--katze); }
+  #rennenWeg .marke[data-spieler="1"] { background: var(--hund); }
   #rennen .bahn { position: absolute; inset: 0; width: 100%; height: 100%; }
   #rennen .zone[data-spieler="0"] .bahn { transform: rotate(180deg); }
+
+  /* ---------- Spiel 5: Tetris ---------- */
+  #tetris .zone { background: #1b1740; }
+  #tetris .bahn { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #tetris .zone[data-spieler="0"] .bahn { transform: rotate(180deg); }
 
   /* ---------- Gesichter ---------- */
   .gesicht { width: clamp(64px, 22vw, 110px); margin: 0 auto 6px; }
@@ -235,6 +261,16 @@
   <section class="zone" data-spieler="0"><canvas class="bahn"></canvas></section>
   <div class="trenner"></div>
   <section class="zone" data-spieler="1"><canvas class="bahn"></canvas></section>
+  <div id="rennenWeg">
+    <div class="marke" data-spieler="0"></div>
+    <div class="marke" data-spieler="1"></div>
+  </div>
+</div>
+
+<div class="feld verborgen" id="tetris">
+  <section class="zone" data-spieler="0"><canvas class="bahn"></canvas></section>
+  <div class="trenner"></div>
+  <section class="zone" data-spieler="1"><canvas class="bahn"></canvas></section>
 </div>
 
 <div class="schirm" id="menue">
@@ -245,7 +281,8 @@
   <button class="knopf" data-spiel="halten">Halte durch</button>
   <button class="knopf" data-spiel="tauziehen">Tauziehen</button>
   <button class="knopf" data-spiel="reaktion">Schnellster Finger</button>
-  <button class="knopf" data-spiel="rennen">Leckerli fangen</button>
+  <button class="knopf" data-spiel="rennen">Autorennen</button>
+  <button class="knopf" data-spiel="tetris">Tetris</button>
   <button class="knopf klein" id="ton">Ton: an</button>
   <button class="knopf klein" id="zuruecksetzen">Punkte löschen</button>
 </div>
@@ -715,14 +752,25 @@
     };
   })();
 
-  /* ================= Spiel 4: Leckerli fangen ================= */
+  /* ================= Spiel 4: Autorennen ================= */
   const rennen = (() => {
-    const ZIEL = 100;
-    const LENK = 330;            // Pixel pro Sekunde seitwaerts
-    const TEMPO_START = 130;     // Pixel pro Sekunde Fallgeschwindigkeit
-    const TEMPO_ZUWACHS = 3;     // pro Sekunde
-    const WERT = 7;              // Punkte je gefangenem Leckerli
-    const LUECKE = 0.55;         // Anteil der Bahnhoehe zwischen zwei Leckerli
+    const SEG = 200;             // Laenge eines Streckenstuecks
+    const STRECKE = 360;         // Streckenstuecke bis zum Ziel
+    const SICHT = 40;            // wie viele Stuecke voraus gezeichnet werden
+    const BREITE = 1100;         // halbe Strassenbreite
+    const KAMERA_H = 1000;
+    const KAMERA_T = 0.84;       // Kameratiefe
+    const AUTO_Z = KAMERA_H * KAMERA_T;   // Abstand Kamera - Auto
+    const AUTO_B = BREITE * 0.44;         // Autobreite in Weltmassen
+    const ZIEL_POS = STRECKE * SEG - AUTO_Z;   // Kameraposition, bei der das Auto im Ziel ist
+    const BASIS = 1500;          // Weltmasse pro Sekunde, ohne Booster
+    const BOOST_FAKTOR = 1.4;
+    const BOOST_DAUER = 1;       // Sekunden
+    const GRAS_FAKTOR = 0.45;    // Tempo neben der Strasse
+    const BESCHLEUNIGUNG = 2;
+    const LENK = 1.1;            // halbe Strassenbreiten pro Sekunde
+    const KURVENKRAFT = 0.2;     // Schub nach aussen in Kurven
+    const FANG = 0.35;           // seitlicher Abstand, bei dem ein Leckerli gefangen wird
     const LECKERLI = "#ffd166";
     const KRUEMEL = "#b07d1f";
 
@@ -730,15 +778,38 @@
     const zonen = Array.from(wurzel.querySelectorAll(".zone"));
     const flaechen = zonen.map(z => z.querySelector(".bahn"));
     const stifte = flaechen.map(c => c.getContext("2d"));
+    const marken = Array.from(wurzel.querySelectorAll("#rennenWeg .marke"));
 
     const bahnen = [0, 1].map(() => ({
       breite: 0, hoehe: 0,
-      x: 0, punkte: 0, tempo: TEMPO_START,
-      gefallen: 0, seitLeckerli: 0,
-      leckerlis: [], lenkung: new Map(), funken: 0
+      pos: 0, x: 0, tempo: 0, boost: 0, funken: 0,
+      lenkung: new Map()
     }));
+    let kurven = [];
+    let leckerlis = [];
     let letzterRahmen = 0;
     let rahmenId = 0;
+
+    // Strecke: Geraden und sanfte Kurven mit weichem Ein- und Ausgang
+    function bauen() {
+      kurven = new Array(STRECKE + SICHT + 4).fill(0);
+      let i = 30;
+      let richtung = Math.random() < 0.5 ? -1 : 1;
+      while (i < STRECKE - 20) {
+        const rein = 12, halten = Math.floor(zufall(15, 40)), raus = 12;
+        const staerke = richtung * zufall(0.8, 2);
+        for (let k = 0; k < rein + halten + raus && i + k < STRECKE; k++) {
+          const anteil = k < rein ? k / rein : k < rein + halten ? 1 : 1 - (k - rein - halten) / raus;
+          kurven[i + k] = staerke * anteil;
+        }
+        i += rein + halten + raus + Math.floor(zufall(15, 40));
+        richtung = -richtung;
+      }
+      leckerlis = [];
+      for (let s = 25; s < STRECKE - 10; s += Math.floor(zufall(12, 22))) {
+        leckerlis.push({ seg: s, u: zufall(-0.75, 0.75), genommen: [false, false] });
+      }
+    }
 
     function masse() {
       const dpr = window.devicePixelRatio || 1;
@@ -750,84 +821,180 @@
         stifte[i].setTransform(dpr, 0, 0, dpr, 0, 0);
         bahnen[i].breite = breite;
         bahnen[i].hoehe = hoehe;
-        bahnen[i].x = breite / 2;
       });
     }
 
-    const groesse = b => Math.min(b.breite * 0.2, b.hoehe * 0.26, 64);
-    const kopfY = b => b.hoehe - groesse(b) - 12;
-    const maulBreite = b => groesse(b) * 0.5;
-    const maulX = b => b.x + (groesse(b) - maulBreite(b)) / 2;
-    const happenR = b => Math.max(8, Math.min(b.breite * 0.04, 14));
+    const stueck = z => Math.floor(z / SEG);
 
-    function neuesLeckerli(b) {
-      const r = happenR(b);
-      b.leckerlis.push({ x: zufall(r, b.breite - r), y: -r, r });
-    }
-
-    function fahre(b, dt) {
+    function fahre(b, dt, i) {
       const gedrueckt = Array.from(b.lenkung.values());
       const richtung = gedrueckt.length ? gedrueckt[gedrueckt.length - 1] : 0;
-      b.x = Math.max(0, Math.min(b.breite - groesse(b), b.x + richtung * LENK * dt));
 
-      b.tempo += TEMPO_ZUWACHS * dt;
-      const weg = b.tempo * dt;
-      b.gefallen += weg;
-      b.seitLeckerli += weg;
+      const davor = stueck(b.pos + AUTO_Z);
+      const naechstes = (b.x < -1.05 || b.x > 1.05 ? GRAS_FAKTOR : 1)
+        * (b.boost > 0 ? BOOST_FAKTOR : 1) * BASIS;
+      b.tempo += (naechstes - b.tempo) * Math.min(1, dt * BESCHLEUNIGUNG);
+      b.pos += b.tempo * dt;
+      if (b.boost > 0) b.boost -= dt;
       if (b.funken > 0) b.funken -= dt;
 
-      if (b.seitLeckerli >= b.hoehe * LUECKE) {
-        b.seitLeckerli = 0;
-        neuesLeckerli(b);
-      }
+      const jetzt = stueck(b.pos + AUTO_Z);
+      const kurve = kurven[jetzt] || 0;
+      b.x += richtung * LENK * dt - kurve * KURVENKRAFT * dt * (b.tempo / BASIS);
+      b.x = Math.max(-2, Math.min(2, b.x));
 
-      const g = groesse(b);
-      const maulY = kopfY(b);
-      const mx = maulX(b);
-      const mb = maulBreite(b);
-      b.leckerlis.forEach(l => { l.y += weg; });
-      b.leckerlis = b.leckerlis.filter(l => {
-        const gefangen = l.y + l.r > maulY && l.y - l.r < maulY + g
-          && l.x + l.r > mx && l.x - l.r < mx + mb;
-        if (gefangen) {
-          b.punkte = Math.min(ZIEL, b.punkte + WERT);
-          b.funken = 0.3;
-          klang.treffer();
-          return false;
-        }
-        return l.y - l.r < b.hoehe;
+      leckerlis.forEach(l => {
+        if (l.genommen[i] || l.seg <= davor || l.seg > jetzt) return;
+        if (Math.abs(l.u - b.x) > FANG) return;
+        l.genommen[i] = true;
+        b.boost = BOOST_DAUER;
+        b.funken = 0.3;
+        klang.treffer();
+      });
+    }
+
+    // Streifen zwischen zwei Quer-Kanten: links/rechts als Abstand zur Strassenmitte
+    function band(stift, y1, x1, von1, bis1, y2, x2, von2, bis2, farbe) {
+      stift.fillStyle = farbe;
+      stift.beginPath();
+      stift.moveTo(x1 + von1, y1);
+      stift.lineTo(x2 + von2, y2);
+      stift.lineTo(x2 + bis2, y2);
+      stift.lineTo(x1 + bis1, y1);
+      stift.closePath();
+      stift.fill();
+    }
+
+    // Auto von hinten: Rad, Karosserie, Ruecklichter, darueber das Tiergesicht.
+    // Mass 100 = Autobreite, y = 0 ist der Boden, nach oben negativ.
+    function zeichneAuto(stift, i, mitte, boden, breite) {
+      stift.save();
+      stift.translate(mitte, boden);
+      stift.scale(breite / 100, breite / 100);
+      zeichneGesicht(stift, i, -26, -84, 52);
+      stift.fillStyle = DUNKEL;
+      stift.fillRect(-52, -28, 16, 28);
+      stift.fillRect(36, -28, 16, 28);
+      stift.fillStyle = FARBEN[i];
+      stift.fillRect(-46, -36, 92, 30);
+      stift.fillStyle = "rgba(20, 17, 44, 0.35)";
+      stift.fillRect(-46, -16, 92, 10);
+      stift.fillStyle = "#ff4d4d";
+      stift.fillRect(-40, -30, 14, 8);
+      stift.fillRect(26, -30, 14, 8);
+      stift.restore();
+    }
+
+    function zeichneLeckerli(stift, x, y, durchmesser) {
+      const r = durchmesser / 2;
+      stift.fillStyle = LECKERLI;
+      stift.beginPath();
+      stift.arc(x, y - r, r, 0, Math.PI * 2);
+      stift.fill();
+      stift.fillStyle = KRUEMEL;
+      [[-0.35, -0.3], [0.35, -0.1], [-0.1, 0.4]].forEach(([dx, dy]) => {
+        stift.beginPath();
+        stift.arc(x + dx * r, y - r + dy * r, r * 0.16, 0, Math.PI * 2);
+        stift.fill();
+      });
+    }
+
+    function zeichneBaum(stift, x, y, breite) {
+      stift.fillStyle = "#6b4a2b";
+      stift.fillRect(x - breite * 0.06, y - breite * 0.3, breite * 0.12, breite * 0.3);
+      stift.fillStyle = "#1d7a4a";
+      [[0.28, 0.5], [0.5, 0.42]].forEach(([unten, halbe]) => {
+        stift.beginPath();
+        stift.moveTo(x - breite * halbe, y - breite * unten);
+        stift.lineTo(x + breite * halbe, y - breite * unten);
+        stift.lineTo(x, y - breite * (unten + 0.7));
+        stift.closePath();
+        stift.fill();
       });
     }
 
     function zeichne(b, stift, i) {
       const { breite, hoehe } = b;
-      stift.clearRect(0, 0, breite, hoehe);
+      const horizont = hoehe * 0.3;
+      const andere = bahnen[1 - i];
 
-      stift.fillStyle = "rgba(244, 240, 255, 0.14)";
-      const versatz = b.gefallen % 44;
-      for (let y = versatz - 44; y < hoehe; y += 44) {
-        stift.fillRect(breite / 2 - 2, y, 4, 22);
+      const himmel = stift.createLinearGradient(0, 0, 0, horizont);
+      himmel.addColorStop(0, "#1b1740");
+      himmel.addColorStop(1, "#7b5cff");
+      stift.fillStyle = himmel;
+      stift.fillRect(0, 0, breite, horizont + 1);
+      stift.fillStyle = "#1f7a4d";
+      stift.fillRect(0, horizont, breite, hoehe - horizont);
+
+      const basis = stueck(b.pos);
+      const anteil = (b.pos % SEG) / SEG;
+      let x = 0;
+      let dx = -((kurven[basis] || 0) * anteil);
+      const reihe = [];
+      for (let n = 0; n < SICHT; n++) {
+        const s = basis + n;
+        const z1 = s * SEG - b.pos;
+        const z2 = z1 + SEG;
+        if (z1 <= KAMERA_T) { x += dx; dx += kurven[s] || 0; continue; }
+        const m1 = KAMERA_T / z1;
+        const m2 = KAMERA_T / z2;
+        reihe.push({
+          s, m1, m2,
+          y1: horizont + m1 * KAMERA_H * (hoehe - horizont),
+          y2: horizont + m2 * KAMERA_H * (hoehe - horizont),
+          x1: breite / 2 + m1 * (x - b.x * BREITE) * breite / 2,
+          x2: breite / 2 + m2 * (x + dx - b.x * BREITE) * breite / 2,
+          w1: m1 * BREITE * breite / 2,
+          w2: m2 * BREITE * breite / 2
+        });
+        x += dx;
+        dx += kurven[s] || 0;
       }
 
-      b.leckerlis.forEach(l => {
-        stift.fillStyle = LECKERLI;
-        stift.beginPath();
-        stift.arc(l.x, l.y, l.r, 0, Math.PI * 2);
-        stift.fill();
-        stift.fillStyle = KRUEMEL;
-        [[-0.35, -0.3], [0.35, -0.1], [-0.1, 0.4]].forEach(([dx, dy]) => {
-          stift.beginPath();
-          stift.arc(l.x + dx * l.r, l.y + dy * l.r, l.r * 0.16, 0, Math.PI * 2);
-          stift.fill();
+      for (let k = reihe.length - 1; k >= 0; k--) {
+        const r = reihe[k];
+        const gerade = Math.floor(r.s / 3) % 2 === 0;
+        const streifen = (von, bis, farbe) => band(
+          stift, r.y1, r.x1, von * r.w1, bis * r.w1, r.y2 - 1, r.x2, von * r.w2, bis * r.w2, farbe);
+        stift.fillStyle = gerade ? "#1f7a4d" : "#1a6b43";
+        stift.fillRect(0, r.y2 - 1, breite, r.y1 - r.y2 + 1);
+        if (r.s === STRECKE || r.s === STRECKE + 1) {
+          streifen(-1, 1, r.s % 2 === 0 ? "#f4f0ff" : "#14112c");
+        } else {
+          streifen(-1.12, -1, gerade ? "#ff5d8f" : "#f4f0ff");
+          streifen(1, 1.12, gerade ? "#ff5d8f" : "#f4f0ff");
+          streifen(-1, 1, gerade ? "#4a4766" : "#433f5e");
+          if (gerade) streifen(-0.03, 0.03, "rgba(244, 240, 255, 0.7)");
+        }
+
+        const sprite = (u, breitePx) => ({ x: r.x1 + u * r.w1, y: r.y1, b: breitePx });
+        if (r.s % 10 === 0) {
+          const p = sprite(-1.7, r.m1 * BREITE * 0.55 * breite / 2);
+          zeichneBaum(stift, p.x, p.y, p.b);
+        }
+        if (r.s % 10 === 5) {
+          const p = sprite(1.8, r.m1 * BREITE * 0.55 * breite / 2);
+          zeichneBaum(stift, p.x, p.y, p.b);
+        }
+        leckerlis.forEach(l => {
+          if (l.seg !== r.s || l.genommen[i]) return;
+          const p = sprite(l.u, r.m1 * BREITE * 0.3 * breite / 2);
+          zeichneLeckerli(stift, p.x, p.y, p.b);
         });
-      });
 
-      zeichneGesicht(stift, i, b.x, kopfY(b), groesse(b));
+        // das andere Auto, wenn es vor uns liegt
+        const fremd = andere.pos + AUTO_Z;
+        if (stueck(fremd) === r.s) {
+          const t = (fremd % SEG) / SEG;
+          const mx = r.x1 + (r.x2 - r.x1) * t + andere.x * (r.w1 + (r.w2 - r.w1) * t);
+          const my = r.y1 + (r.y2 - r.y1) * t;
+          const m = r.m1 + (r.m2 - r.m1) * t;
+          zeichneAuto(stift, 1 - i, mx, my, m * AUTO_B * breite / 2);
+        }
+      }
 
-      stift.fillStyle = "rgba(244, 240, 255, 0.75)";
-      stift.font = "800 20px 'Baloo 2', system-ui, sans-serif";
-      stift.textBaseline = "top";
-      stift.fillText(Math.round(b.punkte), 12, 10);
+      const eigene = m => m * AUTO_B * breite / 2;
+      zeichneAuto(stift, i, breite / 2, hoehe - 6, eigene(KAMERA_T / AUTO_Z));
 
       if (b.funken > 0) {
         stift.fillStyle = "rgba(255, 209, 102, 0.28)";
@@ -835,32 +1002,43 @@
       }
     }
 
+    function fortschritt() {
+      bahnen.forEach((b, i) => {
+        marken[i].style.left = Math.min(100, Math.max(0, (b.pos / ZIEL_POS) * 100)) + "%";
+      });
+    }
+
     function schleife(jetzt) {
       const dt = Math.min(0.05, (jetzt - letzterRahmen) / 1000);
       letzterRahmen = jetzt;
 
-      bahnen.forEach((b, i) => { fahre(b, dt); zeichne(b, stifte[i], i); });
+      bahnen.forEach((b, i) => { fahre(b, dt, i); zeichne(b, stifte[i], i); });
+      fortschritt();
 
-      const sieger = bahnen.findIndex(b => b.punkte >= ZIEL);
-      if (sieger >= 0) { beenden(sieger); return; }
+      const im = [0, 1].filter(i => bahnen[i].pos >= ZIEL_POS);
+      if (im.length) {
+        beenden(im.reduce((a, i) => (bahnen[i].pos > bahnen[a].pos ? i : a)));
+        return;
+      }
       rahmenId = requestAnimationFrame(schleife);
     }
 
     return {
       wurzel,
-      anleitung: "Eigene Hälfte links oder rechts gedrückt halten, um sich zu bewegen. Jedes gefangene Leckerli gibt Punkte.",
+      anleitung: "Eigene Hälfte links oder rechts gedrückt halten, um zu lenken. Leckerli einsammeln gibt Schwung. Wer zuerst im Ziel ist, gewinnt.",
       vorbereiten() {
         masse();
+        bauen();
         bahnen.forEach(b => {
-          b.punkte = 0;
-          b.tempo = TEMPO_START;
-          b.gefallen = 0;
-          b.seitLeckerli = 0;
-          b.leckerlis.length = 0;
-          b.lenkung.clear();
+          b.pos = 0;
+          b.x = 0;
+          b.tempo = 0;
+          b.boost = 0;
           b.funken = 0;
+          b.lenkung.clear();
         });
         bahnen.forEach((b, i) => zeichne(b, stifte[i], i));
+        fortschritt();
       },
       losgehen(jetzt) {
         letzterRahmen = jetzt;
@@ -876,7 +1054,252 @@
     };
   })();
 
-  const spiele = { halten, tauziehen, reaktion, rennen };
+  /* ================= Spiel 5: Tetris ================= */
+  const tetris = (() => {
+    const SPALTEN = 6;
+    const ZEILEN = 10;
+    const BLOECKE = 15;          // Bloecke pro Spieler, beide bekommen dieselbe Folge
+    const FORMEN = [             // Zellen als [Zeile, Spalte]
+      { farbe: "#7bdcff", zellen: [[0, 0], [0, 1], [0, 2], [0, 3]] },   // I
+      { farbe: "#ffd166", zellen: [[0, 0], [0, 1], [1, 0], [1, 1]] },   // O
+      { farbe: "#ff9f5d", zellen: [[0, 0], [1, 0], [2, 0], [2, 1]] },   // L
+      { farbe: "#9d7bff", zellen: [[0, 1], [1, 1], [2, 0], [2, 1]] },   // J
+      { farbe: "#5df0a5", zellen: [[0, 0], [0, 1], [0, 2], [1, 1]] }    // T
+    ];
+
+    const wurzel = el("tetris");
+    const zonen = Array.from(wurzel.querySelectorAll(".zone"));
+    const flaechen = zonen.map(z => z.querySelector(".bahn"));
+    const stifte = flaechen.map(c => c.getContext("2d"));
+
+    const spieler = [0, 1].map(() => ({
+      breite: 0, hoehe: 0, z: 0, x0: 0, y0: 0, knopf: null,
+      feld: [], drehung: 0, links: 0, gewaehlt: false,
+      reihen: 0, gesetzt: 0, fertig: false, voll: false
+    }));
+    let folge = [];
+    let endeId = 0;
+
+    const leeresFeld = () => Array.from({ length: ZEILEN }, () => new Array(SPALTEN).fill(0));
+
+    function gedreht(zellen, mal) {
+      let z = zellen;
+      for (let k = 0; k < mal; k++) z = z.map(([r, c]) => [c, -r]);
+      const r0 = Math.min(...z.map(p => p[0]));
+      const c0 = Math.min(...z.map(p => p[1]));
+      return z.map(([r, c]) => [r - r0, c - c0]);
+    }
+
+    const form = (s, mal) => gedreht(FORMEN[folge[s.gesetzt]].zellen, mal === undefined ? s.drehung : mal);
+    const formBreite = zellen => Math.max(...zellen.map(p => p[1])) + 1;
+
+    function passt(feld, zellen, t, l) {
+      return zellen.every(([r, c]) => {
+        const zeile = r + t;
+        const spalte = c + l;
+        return zeile >= 0 && zeile < ZEILEN && spalte >= 0 && spalte < SPALTEN && !feld[zeile][spalte];
+      });
+    }
+
+    // oberste Zeile, in der der Block nach dem Fallen liegen bleibt, -1 wenn die Spalte oben voll ist
+    function lande(feld, zellen, l) {
+      if (!passt(feld, zellen, 0, l)) return -1;
+      let t = 0;
+      while (passt(feld, zellen, t + 1, l)) t++;
+      return t;
+    }
+
+    function moeglich(s) {
+      for (let mal = 0; mal < 4; mal++) {
+        const zellen = form(s, mal);
+        for (let l = 0; l + formBreite(zellen) <= SPALTEN; l++) {
+          if (lande(s.feld, zellen, l) >= 0) return true;
+        }
+      }
+      return false;
+    }
+
+    function masse() {
+      const dpr = window.devicePixelRatio || 1;
+      flaechen.forEach((c, i) => {
+        const s = spieler[i];
+        s.breite = c.clientWidth;
+        s.hoehe = c.clientHeight;
+        c.width = Math.round(s.breite * dpr);
+        c.height = Math.round(s.hoehe * dpr);
+        stifte[i].setTransform(dpr, 0, 0, dpr, 0, 0);
+        s.z = Math.min((s.hoehe - 20) / ZEILEN, (s.breite * 0.6) / SPALTEN);
+        s.x0 = 10;
+        s.y0 = (s.hoehe - s.z * ZEILEN) / 2;
+      });
+    }
+
+    function zelle(stift, x, y, kante, farbe) {
+      stift.fillStyle = farbe;
+      stift.fillRect(x + 1, y + 1, kante - 2, kante - 2);
+    }
+
+    function zeichne(s, stift, i) {
+      const { breite, hoehe, z, x0, y0 } = s;
+      stift.clearRect(0, 0, breite, hoehe);
+
+      stift.fillStyle = "rgba(244, 240, 255, 0.08)";
+      stift.fillRect(x0, y0, z * SPALTEN, z * ZEILEN);
+      for (let r = 0; r < ZEILEN; r++) {
+        for (let c = 0; c < SPALTEN; c++) {
+          if (s.feld[r][c]) zelle(stift, x0 + c * z, y0 + r * z, z, s.feld[r][c]);
+          else zelle(stift, x0 + c * z, y0 + r * z, z, "rgba(244, 240, 255, 0.05)");
+        }
+      }
+
+      const aktuell = s.fertig ? null : FORMEN[folge[s.gesetzt]];
+      if (aktuell && s.gewaehlt) {
+        const zellen = form(s);
+        const t = lande(s.feld, zellen, s.links);
+        stift.globalAlpha = 0.45;
+        zellen.forEach(([r, c]) => zelle(stift, x0 + (s.links + c) * z, y0 + (t + r) * z, z, aktuell.farbe));
+        stift.globalAlpha = 1;
+      }
+
+      const px = x0 + z * SPALTEN + 16;
+      const pb = breite - px - 10;
+      const gesicht = Math.min(pb * 0.45, 52);
+      zeichneGesicht(stift, i, px, y0, gesicht);
+      stift.fillStyle = "rgba(244, 240, 255, 0.85)";
+      stift.textBaseline = "top";
+      stift.font = "800 14px 'Baloo 2', system-ui, sans-serif";
+      stift.fillText("Reihen", px + gesicht + 8, y0 + 2);
+      stift.font = "800 28px 'Baloo 2', system-ui, sans-serif";
+      stift.fillText(s.reihen, px + gesicht + 8, y0 + 16);
+      stift.font = "800 14px 'Baloo 2', system-ui, sans-serif";
+      stift.fillText(`Block ${Math.min(s.gesetzt + 1, BLOECKE)} von ${BLOECKE}`, px, y0 + gesicht + 10);
+
+      if (aktuell) {
+        const zellen = form(s);
+        const zp = Math.min(pb / 4, 24);
+        const kastenY = y0 + gesicht + 36;
+        stift.fillStyle = "rgba(244, 240, 255, 0.08)";
+        stift.fillRect(px, kastenY, zp * 4, zp * 4);
+        zellen.forEach(([r, c]) => zelle(stift, px + c * zp, kastenY + r * zp, zp, aktuell.farbe));
+      }
+
+      const knopfH = 44;
+      s.knopf = { x: px, y: y0 + z * ZEILEN - knopfH, b: pb, h: knopfH };
+      stift.strokeStyle = "rgba(244, 240, 255, 0.75)";
+      stift.lineWidth = 2;
+      stift.strokeRect(s.knopf.x, s.knopf.y, s.knopf.b, s.knopf.h);
+      stift.font = "800 18px 'Baloo 2', system-ui, sans-serif";
+      stift.textAlign = "center";
+      stift.fillText("Drehen", s.knopf.x + s.knopf.b / 2, s.knopf.y + 12);
+      stift.textAlign = "start";
+
+      if (s.fertig) {
+        stift.fillStyle = "rgba(20, 17, 44, 0.78)";
+        stift.fillRect(0, 0, breite, hoehe);
+        stift.fillStyle = "rgba(244, 240, 255, 0.95)";
+        stift.textAlign = "center";
+        stift.font = "800 30px 'Baloo 2', system-ui, sans-serif";
+        stift.fillText(s.voll ? "Feld voll" : "Fertig", breite / 2, hoehe / 2 - 34);
+        stift.font = "800 22px 'Baloo 2', system-ui, sans-serif";
+        stift.fillText(`${s.reihen} Reihen`, breite / 2, hoehe / 2 + 8);
+        stift.textAlign = "start";
+      }
+    }
+
+    const alleZeichnen = () => spieler.forEach((s, i) => zeichne(s, stifte[i], i));
+
+    function sieger() {
+      if (spieler[0].reihen !== spieler[1].reihen) return spieler[0].reihen > spieler[1].reihen ? 0 : 1;
+      if (spieler[0].gesetzt !== spieler[1].gesetzt) return spieler[0].gesetzt > spieler[1].gesetzt ? 0 : 1;
+      return Math.random() < 0.5 ? 0 : 1;
+    }
+
+    function setze(s) {
+      const zellen = form(s);
+      const t = lande(s.feld, zellen, s.links);
+      const farbe = FORMEN[folge[s.gesetzt]].farbe;
+      zellen.forEach(([r, c]) => { s.feld[t + r][s.links + c] = farbe; });
+      s.gesetzt += 1;
+
+      const volle = s.feld.filter(reihe => reihe.every(Boolean)).length;
+      if (volle) {
+        s.feld = s.feld.filter(reihe => !reihe.every(Boolean));
+        while (s.feld.length < ZEILEN) s.feld.unshift(new Array(SPALTEN).fill(0));
+        s.reihen += volle;
+        klang.treffer();
+      } else {
+        klang.tick();
+      }
+
+      s.drehung = 0;
+      s.gewaehlt = false;
+      if (s.gesetzt >= BLOECKE) s.fertig = true;
+      else if (!moeglich(s)) { s.fertig = true; s.voll = true; }
+
+      alleZeichnen();
+      if (spieler.every(x => x.fertig)) endeId = setTimeout(() => beenden(sieger()), 900);
+    }
+
+    function drehe(s) {
+      s.drehung = (s.drehung + 1) % 4;
+      const zellen = form(s);
+      s.links = Math.min(s.links, SPALTEN - formBreite(zellen));
+      if (s.gewaehlt && lande(s.feld, zellen, s.links) < 0) s.gewaehlt = false;
+    }
+
+    return {
+      wurzel,
+      anleitung: "Auf der eigenen Hälfte die Spalte antippen, in die der Block soll, dann den Block noch einmal antippen. Mit Drehen die Form ändern. Kein Zeitdruck: Wer mehr volle Reihen schafft, gewinnt.",
+      vorbereiten() {
+        clearTimeout(endeId);
+        masse();
+        folge = Array.from({ length: BLOECKE }, () => Math.floor(Math.random() * FORMEN.length));
+        spieler.forEach(s => {
+          s.feld = leeresFeld();
+          s.drehung = 0;
+          s.links = 0;
+          s.gewaehlt = false;
+          s.reihen = 0;
+          s.gesetzt = 0;
+          s.fertig = false;
+          s.voll = false;
+        });
+        alleZeichnen();
+      },
+      losgehen() {},
+      aufhoeren() { clearTimeout(endeId); },
+      runter(i, kennung, x, y) {
+        const s = spieler[i];
+        if (s.fertig) return;
+        // gedrehte obere Haelfte: Bildschirmkoordinaten in die Zeichnung zurueckrechnen
+        const r = flaechen[i].getBoundingClientRect();
+        const lx = i === 0 ? r.right - x : x - r.left;
+        const ly = i === 0 ? r.bottom - y : y - r.top;
+
+        const k = s.knopf;
+        if (k && lx >= k.x && lx <= k.x + k.b && ly >= k.y && ly <= k.y + k.h) {
+          drehe(s);
+          zeichne(s, stifte[i], i);
+          return;
+        }
+
+        const spalte = Math.floor((lx - s.x0) / s.z);
+        if (spalte < 0 || spalte >= SPALTEN) return;
+        const zellen = form(s);
+        const b = formBreite(zellen);
+        if (s.gewaehlt && spalte >= s.links && spalte < s.links + b) { setze(s); return; }
+
+        const links = Math.max(0, Math.min(SPALTEN - b, spalte - Math.floor(b / 2)));
+        if (lande(s.feld, zellen, links) < 0) return;
+        s.links = links;
+        s.gewaehlt = true;
+        zeichne(s, stifte[i], i);
+      },
+      hoch() {}
+    };
+  })();
+
+  const spiele = { halten, tauziehen, reaktion, rennen, tetris };
 
   /* ================= Ablauf ================= */
   function inMenue() {
