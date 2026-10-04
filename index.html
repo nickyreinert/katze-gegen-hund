@@ -1058,6 +1058,7 @@
   const tetris = (() => {
     const SPALTEN = 6;
     const ZEILEN = 10;
+    const STREIFEN = 2.5;        // Hoehe des Streifens fuer den neuen Block, in Zellen
     const BLOECKE = 15;          // Bloecke pro Spieler, beide bekommen dieselbe Folge
     const FORMEN = [             // Zellen als [Zeile, Spalte]
       { farbe: "#7bdcff", zellen: [[0, 0], [0, 1], [0, 2], [0, 3]] },   // I
@@ -1073,8 +1074,8 @@
     const stifte = flaechen.map(c => c.getContext("2d"));
 
     const spieler = [0, 1].map(() => ({
-      breite: 0, hoehe: 0, z: 0, x0: 0, y0: 0, knopf: null,
-      feld: [], drehung: 0, links: 0, gewaehlt: false,
+      breite: 0, hoehe: 0, z: 0, x0: 0, y0: 0,
+      feld: [], drehung: 0,
       reihen: 0, gesetzt: 0, fertig: false, voll: false
     }));
     let folge = [];
@@ -1128,9 +1129,10 @@
         c.width = Math.round(s.breite * dpr);
         c.height = Math.round(s.hoehe * dpr);
         stifte[i].setTransform(dpr, 0, 0, dpr, 0, 0);
-        s.z = Math.min((s.hoehe - 20) / ZEILEN, (s.breite * 0.6) / SPALTEN);
-        s.x0 = 10;
-        s.y0 = (s.hoehe - s.z * ZEILEN) / 2;
+        // Feld unten buendig, darueber (zur Mitte hin) der Streifen fuer den neuen Block
+        s.z = Math.min(s.breite / SPALTEN, s.hoehe / (ZEILEN + STREIFEN));
+        s.x0 = (s.breite - s.z * SPALTEN) / 2;
+        s.y0 = s.hoehe - s.z * ZEILEN;
       });
     }
 
@@ -1153,45 +1155,28 @@
       }
 
       const aktuell = s.fertig ? null : FORMEN[folge[s.gesetzt]];
-      if (aktuell && s.gewaehlt) {
-        const zellen = form(s);
-        const t = lande(s.feld, zellen, s.links);
-        stift.globalAlpha = 0.45;
-        zellen.forEach(([r, c]) => zelle(stift, x0 + (s.links + c) * z, y0 + (t + r) * z, z, aktuell.farbe));
-        stift.globalAlpha = 1;
-      }
-
-      const px = x0 + z * SPALTEN + 16;
-      const pb = breite - px - 10;
-      const gesicht = Math.min(pb * 0.45, 52);
-      zeichneGesicht(stift, i, px, y0, gesicht);
+      const kopf = Math.min(y0 * 0.55, 52);
+      zeichneGesicht(stift, i, 10, 10, kopf);
       stift.fillStyle = "rgba(244, 240, 255, 0.85)";
       stift.textBaseline = "top";
       stift.font = "800 14px 'Baloo 2', system-ui, sans-serif";
-      stift.fillText("Reihen", px + gesicht + 8, y0 + 2);
+      stift.fillText("Reihen", 18 + kopf, 10);
       stift.font = "800 28px 'Baloo 2', system-ui, sans-serif";
-      stift.fillText(s.reihen, px + gesicht + 8, y0 + 16);
+      stift.fillText(s.reihen, 18 + kopf, 26);
       stift.font = "800 14px 'Baloo 2', system-ui, sans-serif";
-      stift.fillText(`Block ${Math.min(s.gesetzt + 1, BLOECKE)} von ${BLOECKE}`, px, y0 + gesicht + 10);
+      stift.textAlign = "right";
+      stift.fillText(`Block ${Math.min(s.gesetzt + 1, BLOECKE)} von ${BLOECKE}`, breite - 10, 10);
+      stift.textAlign = "start";
 
       if (aktuell) {
         const zellen = form(s);
-        const zp = Math.min(pb / 4, 24);
-        const kastenY = y0 + gesicht + 36;
-        stift.fillStyle = "rgba(244, 240, 255, 0.08)";
-        stift.fillRect(px, kastenY, zp * 4, zp * 4);
-        zellen.forEach(([r, c]) => zelle(stift, px + c * zp, kastenY + r * zp, zp, aktuell.farbe));
+        const zp = Math.min(z, (y0 - 16) / 4);
+        const bb = formBreite(zellen);
+        const hh = Math.max(...zellen.map(p => p[0])) + 1;
+        const px = (breite - bb * zp) / 2;
+        const py = (y0 - hh * zp) / 2;
+        zellen.forEach(([r, c]) => zelle(stift, px + c * zp, py + r * zp, zp, aktuell.farbe));
       }
-
-      const knopfH = 44;
-      s.knopf = { x: px, y: y0 + z * ZEILEN - knopfH, b: pb, h: knopfH };
-      stift.strokeStyle = "rgba(244, 240, 255, 0.75)";
-      stift.lineWidth = 2;
-      stift.strokeRect(s.knopf.x, s.knopf.y, s.knopf.b, s.knopf.h);
-      stift.font = "800 18px 'Baloo 2', system-ui, sans-serif";
-      stift.textAlign = "center";
-      stift.fillText("Drehen", s.knopf.x + s.knopf.b / 2, s.knopf.y + 12);
-      stift.textAlign = "start";
 
       if (s.fertig) {
         stift.fillStyle = "rgba(20, 17, 44, 0.78)";
@@ -1214,11 +1199,11 @@
       return Math.random() < 0.5 ? 0 : 1;
     }
 
-    function setze(s) {
+    function setze(s, links) {
       const zellen = form(s);
-      const t = lande(s.feld, zellen, s.links);
+      const t = lande(s.feld, zellen, links);
       const farbe = FORMEN[folge[s.gesetzt]].farbe;
-      zellen.forEach(([r, c]) => { s.feld[t + r][s.links + c] = farbe; });
+      zellen.forEach(([r, c]) => { s.feld[t + r][links + c] = farbe; });
       s.gesetzt += 1;
 
       const volle = s.feld.filter(reihe => reihe.every(Boolean)).length;
@@ -1232,7 +1217,6 @@
       }
 
       s.drehung = 0;
-      s.gewaehlt = false;
       if (s.gesetzt >= BLOECKE) s.fertig = true;
       else if (!moeglich(s)) { s.fertig = true; s.voll = true; }
 
@@ -1240,16 +1224,9 @@
       if (spieler.every(x => x.fertig)) endeId = setTimeout(() => beenden(sieger()), 900);
     }
 
-    function drehe(s) {
-      s.drehung = (s.drehung + 1) % 4;
-      const zellen = form(s);
-      s.links = Math.min(s.links, SPALTEN - formBreite(zellen));
-      if (s.gewaehlt && lande(s.feld, zellen, s.links) < 0) s.gewaehlt = false;
-    }
-
     return {
       wurzel,
-      anleitung: "Auf der eigenen Hälfte die Spalte antippen, in die der Block soll, dann den Block noch einmal antippen. Mit Drehen die Form ändern. Kein Zeitdruck: Wer mehr volle Reihen schafft, gewinnt.",
+      anleitung: "Der neue Block liegt an der Mittellinie: antippen dreht ihn. Spalte im Feld antippen setzt ihn dort ab. Kein Zeitdruck: Wer mehr volle Reihen schafft, gewinnt.",
       vorbereiten() {
         clearTimeout(endeId);
         masse();
@@ -1257,8 +1234,6 @@
         spieler.forEach(s => {
           s.feld = leeresFeld();
           s.drehung = 0;
-          s.links = 0;
-          s.gewaehlt = false;
           s.reihen = 0;
           s.gesetzt = 0;
           s.fertig = false;
@@ -1276,9 +1251,8 @@
         const lx = i === 0 ? r.right - x : x - r.left;
         const ly = i === 0 ? r.bottom - y : y - r.top;
 
-        const k = s.knopf;
-        if (k && lx >= k.x && lx <= k.x + k.b && ly >= k.y && ly <= k.y + k.h) {
-          drehe(s);
+        if (ly < s.y0) {
+          s.drehung = (s.drehung + 1) % 4;
           zeichne(s, stifte[i], i);
           return;
         }
@@ -1287,13 +1261,9 @@
         if (spalte < 0 || spalte >= SPALTEN) return;
         const zellen = form(s);
         const b = formBreite(zellen);
-        if (s.gewaehlt && spalte >= s.links && spalte < s.links + b) { setze(s); return; }
-
         const links = Math.max(0, Math.min(SPALTEN - b, spalte - Math.floor(b / 2)));
         if (lande(s.feld, zellen, links) < 0) return;
-        s.links = links;
-        s.gewaehlt = true;
-        zeichne(s, stifte[i], i);
+        setze(s, links);
       },
       hoch() {}
     };

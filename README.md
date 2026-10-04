@@ -14,7 +14,7 @@ Katze und ist gedreht, die untere gehört dem Hund.
 | **Tauziehen** | Den weißen Punkt auf der eigenen Hälfte treffen, dann springt er weiter. | zehn Nettotreffer Vorsprung schafft und die Trennlinie bis zum Rand schiebt. |
 | **Schnellster Finger** | Warten, bis alles grün wird, dann tippen. Zu früh getippt heißt Durchgang verloren. | zwei Durchgänge gewinnt. |
 | **Autorennen** | Links oder rechts auf der eigenen Hälfte gedrückt halten, um das Auto zu lenken. Leckerli auf der Strecke geben kurz Schwung. | zuerst im Ziel ist. Die Mitte zeigt, wie weit beide sind. |
-| **Tetris** | Spalte antippen, in die der Block soll, dann den Block noch einmal antippen. `Drehen` ändert die Form. Kein Zeitdruck, beide bekommen dieselben 15 Blöcke. | mehr volle Reihen räumt. Wer keinen Block mehr unterbringt, ist fertig. Bei Gleichstand zählen mehr gesetzte Blöcke, dann entscheidet der Zufall. |
+| **Tetris** | Der neue Block liegt an der Mittellinie: antippen dreht ihn, eine Spalte im Feld antippen setzt ihn dort ab. Kein Zeitdruck, beide bekommen dieselben 15 Blöcke. | mehr volle Reihen räumt. Wer keinen Block mehr unterbringt, ist fertig. Bei Gleichstand zählen mehr gesetzte Blöcke, dann entscheidet der Zufall. |
 
 Der Gesamtstand zwischen Katze und Hund läuft über alle Spiele weiter und
 bleibt auch nach dem Schließen der Seite erhalten. `Punkte löschen` im Menü
@@ -55,8 +55,10 @@ hochzählen, sonst bekommen Geräte mit installierter App noch die alte Fassung.
 
 ## Veröffentlichen
 
-`.github/workflows/pages.yml` schiebt bei jedem Push auf `main` den ganzen
-Ordner zu GitHub Pages. Einmalig muss dafür unter **Settings → Pages** als
+`.github/workflows/pages.yml` schiebt den ganzen Ordner zu GitHub Pages. Der
+Ablauf startet bei einem Push auf `main` oder `master` oder von Hand über
+**Actions → Run workflow**. Dieses Repository hat keinen dieser Branches,
+automatisch läuft er hier also nicht. Einmalig muss dafür unter **Settings → Pages** als
 *Source* **GitHub Actions** eingestellt sein. Danach liegt das Spiel unter
 `https://nickyreinert.github.io/katze-gegen-hund/`.
 
