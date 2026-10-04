@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Katze gegen Hund</title>
-<meta name="description" content="Vier kurze Duelle für zwei Kinder an einem Handy: Handy flach auf den Tisch, jedes Kind an eine Seite. Halte durch, Tauziehen, Schnellster Finger, Leckerli fangen.">
+<meta name="description" content="Vier kurze Duelle für zwei Kinder an einem Handy: Handy flach auf den Tisch, jedes Kind an eine Seite. Halte durch, Tauziehen, Schnellster Finger, Autorennen.">
 <meta name="theme-color" content="#14112c">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
@@ -124,8 +124,29 @@
   #reaktion.jetzt .zone { background: var(--gruen); color: var(--nacht); }
   #reaktion .zone.fehlstart { background: var(--warn); }
 
-  /* ---------- Spiel 4: Leckerli fangen ---------- */
+  /* ---------- Spiel 4: Autorennen ---------- */
   #rennen .zone { background: #1b1740; }
+  #rennenWeg { position: absolute; left: 8%; right: 8%; top: 50%; height: 0; z-index: 2; pointer-events: none; }
+  #rennenWeg::before {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: -4px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--hell);
+    opacity: 0.5;
+  }
+  #rennenWeg .marke {
+    position: absolute;
+    top: -12px;
+    width: 24px;
+    height: 24px;
+    margin-left: -12px;
+    border-radius: 50%;
+    border: 3px solid var(--hell);
+  }
+  #rennenWeg .marke[data-spieler="0"] { background: var(--katze); }
+  #rennenWeg .marke[data-spieler="1"] { background: var(--hund); }
   #rennen .bahn { position: absolute; inset: 0; width: 100%; height: 100%; }
   #rennen .zone[data-spieler="0"] .bahn { transform: rotate(180deg); }
 
@@ -235,6 +256,10 @@
   <section class="zone" data-spieler="0"><canvas class="bahn"></canvas></section>
   <div class="trenner"></div>
   <section class="zone" data-spieler="1"><canvas class="bahn"></canvas></section>
+  <div id="rennenWeg">
+    <div class="marke" data-spieler="0"></div>
+    <div class="marke" data-spieler="1"></div>
+  </div>
 </div>
 
 <div class="schirm" id="menue">
@@ -245,7 +270,7 @@
   <button class="knopf" data-spiel="halten">Halte durch</button>
   <button class="knopf" data-spiel="tauziehen">Tauziehen</button>
   <button class="knopf" data-spiel="reaktion">Schnellster Finger</button>
-  <button class="knopf" data-spiel="rennen">Leckerli fangen</button>
+  <button class="knopf" data-spiel="rennen">Autorennen</button>
   <button class="knopf klein" id="ton">Ton: an</button>
   <button class="knopf klein" id="zuruecksetzen">Punkte löschen</button>
 </div>
@@ -715,14 +740,25 @@
     };
   })();
 
-  /* ================= Spiel 4: Leckerli fangen ================= */
+  /* ================= Spiel 4: Autorennen ================= */
   const rennen = (() => {
-    const ZIEL = 100;
-    const LENK = 330;            // Pixel pro Sekunde seitwaerts
-    const TEMPO_START = 90;      // Pixel pro Sekunde Fallgeschwindigkeit
-    const TEMPO_ZUWACHS = 2;     // pro Sekunde
-    const WERT = 7;              // Punkte je gefangenem Leckerli
-    const LUECKE = 0.55;         // Anteil der Bahnhoehe zwischen zwei Leckerli
+    const SEG = 200;             // Laenge eines Streckenstuecks
+    const STRECKE = 360;         // Streckenstuecke bis zum Ziel
+    const SICHT = 40;            // wie viele Stuecke voraus gezeichnet werden
+    const BREITE = 1100;         // halbe Strassenbreite
+    const KAMERA_H = 1000;
+    const KAMERA_T = 0.84;       // Kameratiefe
+    const AUTO_Z = KAMERA_H * KAMERA_T;   // Abstand Kamera - Auto
+    const AUTO_B = BREITE * 0.44;         // Autobreite in Weltmassen
+    const ZIEL_POS = STRECKE * SEG - AUTO_Z;   // Kameraposition, bei der das Auto im Ziel ist
+    const BASIS = 1500;          // Weltmasse pro Sekunde, ohne Booster
+    const BOOST_FAKTOR = 1.4;
+    const BOOST_DAUER = 1;       // Sekunden
+    const GRAS_FAKTOR = 0.45;    // Tempo neben der Strasse
+    const BESCHLEUNIGUNG = 2;
+    const LENK = 1.1;            // halbe Strassenbreiten pro Sekunde
+    const KURVENKRAFT = 0.2;     // Schub nach aussen in Kurven
+    const FANG = 0.35;           // seitlicher Abstand, bei dem ein Leckerli gefangen wird
     const LECKERLI = "#ffd166";
     const KRUEMEL = "#b07d1f";
 
@@ -730,15 +766,38 @@
     const zonen = Array.from(wurzel.querySelectorAll(".zone"));
     const flaechen = zonen.map(z => z.querySelector(".bahn"));
     const stifte = flaechen.map(c => c.getContext("2d"));
+    const marken = Array.from(wurzel.querySelectorAll("#rennenWeg .marke"));
 
     const bahnen = [0, 1].map(() => ({
       breite: 0, hoehe: 0,
-      x: 0, punkte: 0, tempo: TEMPO_START,
-      gefallen: 0, seitLeckerli: 0,
-      leckerlis: [], lenkung: new Map(), funken: 0
+      pos: 0, x: 0, tempo: 0, boost: 0, funken: 0,
+      lenkung: new Map()
     }));
+    let kurven = [];
+    let leckerlis = [];
     let letzterRahmen = 0;
     let rahmenId = 0;
+
+    // Strecke: Geraden und sanfte Kurven mit weichem Ein- und Ausgang
+    function bauen() {
+      kurven = new Array(STRECKE + SICHT + 4).fill(0);
+      let i = 30;
+      let richtung = Math.random() < 0.5 ? -1 : 1;
+      while (i < STRECKE - 20) {
+        const rein = 12, halten = Math.floor(zufall(15, 40)), raus = 12;
+        const staerke = richtung * zufall(0.8, 2);
+        for (let k = 0; k < rein + halten + raus && i + k < STRECKE; k++) {
+          const anteil = k < rein ? k / rein : k < rein + halten ? 1 : 1 - (k - rein - halten) / raus;
+          kurven[i + k] = staerke * anteil;
+        }
+        i += rein + halten + raus + Math.floor(zufall(15, 40));
+        richtung = -richtung;
+      }
+      leckerlis = [];
+      for (let s = 25; s < STRECKE - 10; s += Math.floor(zufall(12, 22))) {
+        leckerlis.push({ seg: s, u: zufall(-0.75, 0.75), genommen: [false, false] });
+      }
+    }
 
     function masse() {
       const dpr = window.devicePixelRatio || 1;
@@ -750,84 +809,180 @@
         stifte[i].setTransform(dpr, 0, 0, dpr, 0, 0);
         bahnen[i].breite = breite;
         bahnen[i].hoehe = hoehe;
-        bahnen[i].x = breite / 2;
       });
     }
 
-    const groesse = b => Math.min(b.breite * 0.2, b.hoehe * 0.26, 64);
-    const kopfY = b => b.hoehe - groesse(b) - 12;
-    const maulBreite = b => groesse(b) * 0.5;
-    const maulX = b => b.x + (groesse(b) - maulBreite(b)) / 2;
-    const happenR = b => Math.max(8, Math.min(b.breite * 0.04, 14));
+    const stueck = z => Math.floor(z / SEG);
 
-    function neuesLeckerli(b) {
-      const r = happenR(b);
-      b.leckerlis.push({ x: zufall(r, b.breite - r), y: -r, r });
-    }
-
-    function fahre(b, dt) {
+    function fahre(b, dt, i) {
       const gedrueckt = Array.from(b.lenkung.values());
       const richtung = gedrueckt.length ? gedrueckt[gedrueckt.length - 1] : 0;
-      b.x = Math.max(0, Math.min(b.breite - groesse(b), b.x + richtung * LENK * dt));
 
-      b.tempo += TEMPO_ZUWACHS * dt;
-      const weg = b.tempo * dt;
-      b.gefallen += weg;
-      b.seitLeckerli += weg;
+      const davor = stueck(b.pos + AUTO_Z);
+      const naechstes = (b.x < -1.05 || b.x > 1.05 ? GRAS_FAKTOR : 1)
+        * (b.boost > 0 ? BOOST_FAKTOR : 1) * BASIS;
+      b.tempo += (naechstes - b.tempo) * Math.min(1, dt * BESCHLEUNIGUNG);
+      b.pos += b.tempo * dt;
+      if (b.boost > 0) b.boost -= dt;
       if (b.funken > 0) b.funken -= dt;
 
-      if (b.seitLeckerli >= b.hoehe * LUECKE) {
-        b.seitLeckerli = 0;
-        neuesLeckerli(b);
-      }
+      const jetzt = stueck(b.pos + AUTO_Z);
+      const kurve = kurven[jetzt] || 0;
+      b.x += richtung * LENK * dt - kurve * KURVENKRAFT * dt * (b.tempo / BASIS);
+      b.x = Math.max(-2, Math.min(2, b.x));
 
-      const g = groesse(b);
-      const maulY = kopfY(b);
-      const mx = maulX(b);
-      const mb = maulBreite(b);
-      b.leckerlis.forEach(l => { l.y += weg; });
-      b.leckerlis = b.leckerlis.filter(l => {
-        const gefangen = l.y + l.r > maulY && l.y - l.r < maulY + g
-          && l.x + l.r > mx && l.x - l.r < mx + mb;
-        if (gefangen) {
-          b.punkte = Math.min(ZIEL, b.punkte + WERT);
-          b.funken = 0.3;
-          klang.treffer();
-          return false;
-        }
-        return l.y - l.r < b.hoehe;
+      leckerlis.forEach(l => {
+        if (l.genommen[i] || l.seg <= davor || l.seg > jetzt) return;
+        if (Math.abs(l.u - b.x) > FANG) return;
+        l.genommen[i] = true;
+        b.boost = BOOST_DAUER;
+        b.funken = 0.3;
+        klang.treffer();
+      });
+    }
+
+    // Streifen zwischen zwei Quer-Kanten: links/rechts als Abstand zur Strassenmitte
+    function band(stift, y1, x1, von1, bis1, y2, x2, von2, bis2, farbe) {
+      stift.fillStyle = farbe;
+      stift.beginPath();
+      stift.moveTo(x1 + von1, y1);
+      stift.lineTo(x2 + von2, y2);
+      stift.lineTo(x2 + bis2, y2);
+      stift.lineTo(x1 + bis1, y1);
+      stift.closePath();
+      stift.fill();
+    }
+
+    // Auto von hinten: Rad, Karosserie, Ruecklichter, darueber das Tiergesicht.
+    // Mass 100 = Autobreite, y = 0 ist der Boden, nach oben negativ.
+    function zeichneAuto(stift, i, mitte, boden, breite) {
+      stift.save();
+      stift.translate(mitte, boden);
+      stift.scale(breite / 100, breite / 100);
+      zeichneGesicht(stift, i, -26, -84, 52);
+      stift.fillStyle = DUNKEL;
+      stift.fillRect(-52, -28, 16, 28);
+      stift.fillRect(36, -28, 16, 28);
+      stift.fillStyle = FARBEN[i];
+      stift.fillRect(-46, -36, 92, 30);
+      stift.fillStyle = "rgba(20, 17, 44, 0.35)";
+      stift.fillRect(-46, -16, 92, 10);
+      stift.fillStyle = "#ff4d4d";
+      stift.fillRect(-40, -30, 14, 8);
+      stift.fillRect(26, -30, 14, 8);
+      stift.restore();
+    }
+
+    function zeichneLeckerli(stift, x, y, durchmesser) {
+      const r = durchmesser / 2;
+      stift.fillStyle = LECKERLI;
+      stift.beginPath();
+      stift.arc(x, y - r, r, 0, Math.PI * 2);
+      stift.fill();
+      stift.fillStyle = KRUEMEL;
+      [[-0.35, -0.3], [0.35, -0.1], [-0.1, 0.4]].forEach(([dx, dy]) => {
+        stift.beginPath();
+        stift.arc(x + dx * r, y - r + dy * r, r * 0.16, 0, Math.PI * 2);
+        stift.fill();
+      });
+    }
+
+    function zeichneBaum(stift, x, y, breite) {
+      stift.fillStyle = "#6b4a2b";
+      stift.fillRect(x - breite * 0.06, y - breite * 0.3, breite * 0.12, breite * 0.3);
+      stift.fillStyle = "#1d7a4a";
+      [[0.28, 0.5], [0.5, 0.42]].forEach(([unten, halbe]) => {
+        stift.beginPath();
+        stift.moveTo(x - breite * halbe, y - breite * unten);
+        stift.lineTo(x + breite * halbe, y - breite * unten);
+        stift.lineTo(x, y - breite * (unten + 0.7));
+        stift.closePath();
+        stift.fill();
       });
     }
 
     function zeichne(b, stift, i) {
       const { breite, hoehe } = b;
-      stift.clearRect(0, 0, breite, hoehe);
+      const horizont = hoehe * 0.3;
+      const andere = bahnen[1 - i];
 
-      stift.fillStyle = "rgba(244, 240, 255, 0.14)";
-      const versatz = b.gefallen % 44;
-      for (let y = versatz - 44; y < hoehe; y += 44) {
-        stift.fillRect(breite / 2 - 2, y, 4, 22);
+      const himmel = stift.createLinearGradient(0, 0, 0, horizont);
+      himmel.addColorStop(0, "#1b1740");
+      himmel.addColorStop(1, "#7b5cff");
+      stift.fillStyle = himmel;
+      stift.fillRect(0, 0, breite, horizont + 1);
+      stift.fillStyle = "#1f7a4d";
+      stift.fillRect(0, horizont, breite, hoehe - horizont);
+
+      const basis = stueck(b.pos);
+      const anteil = (b.pos % SEG) / SEG;
+      let x = 0;
+      let dx = -((kurven[basis] || 0) * anteil);
+      const reihe = [];
+      for (let n = 0; n < SICHT; n++) {
+        const s = basis + n;
+        const z1 = s * SEG - b.pos;
+        const z2 = z1 + SEG;
+        if (z1 <= KAMERA_T) { x += dx; dx += kurven[s] || 0; continue; }
+        const m1 = KAMERA_T / z1;
+        const m2 = KAMERA_T / z2;
+        reihe.push({
+          s, m1, m2,
+          y1: horizont + m1 * KAMERA_H * (hoehe - horizont),
+          y2: horizont + m2 * KAMERA_H * (hoehe - horizont),
+          x1: breite / 2 + m1 * (x - b.x * BREITE) * breite / 2,
+          x2: breite / 2 + m2 * (x + dx - b.x * BREITE) * breite / 2,
+          w1: m1 * BREITE * breite / 2,
+          w2: m2 * BREITE * breite / 2
+        });
+        x += dx;
+        dx += kurven[s] || 0;
       }
 
-      b.leckerlis.forEach(l => {
-        stift.fillStyle = LECKERLI;
-        stift.beginPath();
-        stift.arc(l.x, l.y, l.r, 0, Math.PI * 2);
-        stift.fill();
-        stift.fillStyle = KRUEMEL;
-        [[-0.35, -0.3], [0.35, -0.1], [-0.1, 0.4]].forEach(([dx, dy]) => {
-          stift.beginPath();
-          stift.arc(l.x + dx * l.r, l.y + dy * l.r, l.r * 0.16, 0, Math.PI * 2);
-          stift.fill();
+      for (let k = reihe.length - 1; k >= 0; k--) {
+        const r = reihe[k];
+        const gerade = Math.floor(r.s / 3) % 2 === 0;
+        const streifen = (von, bis, farbe) => band(
+          stift, r.y1, r.x1, von * r.w1, bis * r.w1, r.y2 - 1, r.x2, von * r.w2, bis * r.w2, farbe);
+        stift.fillStyle = gerade ? "#1f7a4d" : "#1a6b43";
+        stift.fillRect(0, r.y2 - 1, breite, r.y1 - r.y2 + 1);
+        if (r.s === STRECKE || r.s === STRECKE + 1) {
+          streifen(-1, 1, r.s % 2 === 0 ? "#f4f0ff" : "#14112c");
+        } else {
+          streifen(-1.12, -1, gerade ? "#ff5d8f" : "#f4f0ff");
+          streifen(1, 1.12, gerade ? "#ff5d8f" : "#f4f0ff");
+          streifen(-1, 1, gerade ? "#4a4766" : "#433f5e");
+          if (gerade) streifen(-0.03, 0.03, "rgba(244, 240, 255, 0.7)");
+        }
+
+        const sprite = (u, breitePx) => ({ x: r.x1 + u * r.w1, y: r.y1, b: breitePx });
+        if (r.s % 10 === 0) {
+          const p = sprite(-1.7, r.m1 * BREITE * 0.55 * breite / 2);
+          zeichneBaum(stift, p.x, p.y, p.b);
+        }
+        if (r.s % 10 === 5) {
+          const p = sprite(1.8, r.m1 * BREITE * 0.55 * breite / 2);
+          zeichneBaum(stift, p.x, p.y, p.b);
+        }
+        leckerlis.forEach(l => {
+          if (l.seg !== r.s || l.genommen[i]) return;
+          const p = sprite(l.u, r.m1 * BREITE * 0.3 * breite / 2);
+          zeichneLeckerli(stift, p.x, p.y, p.b);
         });
-      });
 
-      zeichneGesicht(stift, i, b.x, kopfY(b), groesse(b));
+        // das andere Auto, wenn es vor uns liegt
+        const fremd = andere.pos + AUTO_Z;
+        if (stueck(fremd) === r.s) {
+          const t = (fremd % SEG) / SEG;
+          const mx = r.x1 + (r.x2 - r.x1) * t + andere.x * (r.w1 + (r.w2 - r.w1) * t);
+          const my = r.y1 + (r.y2 - r.y1) * t;
+          const m = r.m1 + (r.m2 - r.m1) * t;
+          zeichneAuto(stift, 1 - i, mx, my, m * AUTO_B * breite / 2);
+        }
+      }
 
-      stift.fillStyle = "rgba(244, 240, 255, 0.75)";
-      stift.font = "800 20px 'Baloo 2', system-ui, sans-serif";
-      stift.textBaseline = "top";
-      stift.fillText(Math.round(b.punkte), 12, 10);
+      const eigene = m => m * AUTO_B * breite / 2;
+      zeichneAuto(stift, i, breite / 2, hoehe - 6, eigene(KAMERA_T / AUTO_Z));
 
       if (b.funken > 0) {
         stift.fillStyle = "rgba(255, 209, 102, 0.28)";
@@ -835,32 +990,43 @@
       }
     }
 
+    function fortschritt() {
+      bahnen.forEach((b, i) => {
+        marken[i].style.left = Math.min(100, Math.max(0, (b.pos / ZIEL_POS) * 100)) + "%";
+      });
+    }
+
     function schleife(jetzt) {
       const dt = Math.min(0.05, (jetzt - letzterRahmen) / 1000);
       letzterRahmen = jetzt;
 
-      bahnen.forEach((b, i) => { fahre(b, dt); zeichne(b, stifte[i], i); });
+      bahnen.forEach((b, i) => { fahre(b, dt, i); zeichne(b, stifte[i], i); });
+      fortschritt();
 
-      const sieger = bahnen.findIndex(b => b.punkte >= ZIEL);
-      if (sieger >= 0) { beenden(sieger); return; }
+      const im = [0, 1].filter(i => bahnen[i].pos >= ZIEL_POS);
+      if (im.length) {
+        beenden(im.reduce((a, i) => (bahnen[i].pos > bahnen[a].pos ? i : a)));
+        return;
+      }
       rahmenId = requestAnimationFrame(schleife);
     }
 
     return {
       wurzel,
-      anleitung: "Eigene Hälfte links oder rechts gedrückt halten, um sich zu bewegen. Jedes gefangene Leckerli gibt Punkte.",
+      anleitung: "Eigene Hälfte links oder rechts gedrückt halten, um zu lenken. Leckerli einsammeln gibt Schwung. Wer zuerst im Ziel ist, gewinnt.",
       vorbereiten() {
         masse();
+        bauen();
         bahnen.forEach(b => {
-          b.punkte = 0;
-          b.tempo = TEMPO_START;
-          b.gefallen = 0;
-          b.seitLeckerli = 0;
-          b.leckerlis.length = 0;
-          b.lenkung.clear();
+          b.pos = 0;
+          b.x = 0;
+          b.tempo = 0;
+          b.boost = 0;
           b.funken = 0;
+          b.lenkung.clear();
         });
         bahnen.forEach((b, i) => zeichne(b, stifte[i], i));
+        fortschritt();
       },
       losgehen(jetzt) {
         letzterRahmen = jetzt;

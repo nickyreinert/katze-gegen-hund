@@ -13,7 +13,7 @@ Katze und ist gedreht, die untere gehört dem Hund.
 | **Halte durch** | Finger auf die eigene Hälfte legen und halten. Wird alles rot: sofort loslassen. | zuerst 100 Punkte hat. Wer beim Rot noch hält, verliert 18 Punkte. |
 | **Tauziehen** | Den weißen Punkt auf der eigenen Hälfte treffen, dann springt er weiter. | zehn Nettotreffer Vorsprung schafft und die Trennlinie bis zum Rand schiebt. |
 | **Schnellster Finger** | Warten, bis alles grün wird, dann tippen. Zu früh getippt heißt Durchgang verloren. | zwei Durchgänge gewinnt. |
-| **Leckerli fangen** | Links oder rechts auf der eigenen Hälfte gedrückt halten, um zu laufen. | zuerst 100 Punkte gefangen hat. Jedes Leckerli zählt 7. |
+| **Autorennen** | Links oder rechts auf der eigenen Hälfte gedrückt halten, um das Auto zu lenken. Leckerli auf der Strecke geben kurz Schwung. | zuerst im Ziel ist. Die Mitte zeigt, wie weit beide sind. |
 
 Der Gesamtstand zwischen Katze und Hund läuft über alle Spiele weiter und
 bleibt auch nach dem Schließen der Seite erhalten. `Punkte löschen` im Menü
@@ -35,7 +35,7 @@ nicht mitten im Duell dunkel wird.
 Kein Build, keine Abhängigkeiten – `index.html` ist das ganze Spiel und lädt
 nichts nach. Die Schrift steckt als `data:`-URL in der Datei, die Tiergesichter
 sind SVG im Menü und dieselben Formen noch einmal als Canvas-Zeichnung für
-`Leckerli fangen`.
+`Autorennen`.
 
 ```
 index.html              Spiel, Grafik, Ton und Schrift in einer Datei

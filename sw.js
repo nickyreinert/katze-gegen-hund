@@ -1,6 +1,6 @@
 /* Legt das Spiel ab, damit es auch ohne Netz startet.
    Bei jeder Aenderung an den Dateien die Nummer im Namen hochzaehlen. */
-const LAGER = "katze-gegen-hund-v1";
+const LAGER = "katze-gegen-hund-v2";
 const DATEIEN = [
   "./",
   "./index.html",
