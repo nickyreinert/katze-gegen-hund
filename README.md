@@ -14,7 +14,7 @@ Katze und ist gedreht, die untere gehört dem Hund.
 | **Tauziehen** | Den weißen Punkt auf der eigenen Hälfte treffen, dann springt er weiter. | zehn Nettotreffer Vorsprung schafft und die Trennlinie bis zum Rand schiebt. |
 | **Schnellster Finger** | Warten, bis alles grün wird, dann tippen. Zu früh getippt heißt Durchgang verloren. | zwei Durchgänge gewinnt. |
 | **Autorennen** | Links oder rechts auf der eigenen Hälfte gedrückt halten, um das Auto zu lenken. Leckerli auf der Strecke geben kurz Schwung. | zuerst im Ziel ist. Die Mitte zeigt, wie weit beide sind. |
-| **Tetris** | Der neue Block liegt an der Mittellinie: antippen dreht ihn, eine Spalte im Feld antippen setzt ihn dort ab. Kein Zeitdruck, beide bekommen dieselben 15 Blöcke. | mehr volle Reihen räumt. Wer keinen Block mehr unterbringt, ist fertig. Bei Gleichstand zählen mehr gesetzte Blöcke, dann entscheidet der Zufall. |
+| **Tetris** | Der neue Block liegt an der Mittellinie. `Drehen` links dreht ihn, ein Tipp ins Feld zeigt die Vorschau und lässt sich beliebig oft verschieben, `Setzen` rechts legt den Block fest. Kein Zeitdruck, beide bekommen dieselben 15 Blöcke. | mehr volle Reihen räumt. Wer keinen Block mehr unterbringt, ist fertig. Bei Gleichstand zählen mehr gesetzte Blöcke, dann entscheidet der Zufall. |
 
 Der Gesamtstand zwischen Katze und Hund läuft über alle Spiele weiter und
 bleibt auch nach dem Schließen der Seite erhalten. `Punkte löschen` im Menü
